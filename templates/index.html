@@ -3,16 +3,17 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 <title>Projects</title>
 
 </head>
+
 
 <body>
     <!-- TOP BAR -->
     <div class="topbar">
         <div class="menu-button" id="menuButton">☰</div>
-        <img src="../static/logo.png" class="logo" alt="logo">
+        <<img src="{{ url_for('static', filename='logo.png') }}" class="logo" alt="logo">
 
         <div class="brand">
             <div class="brand-title">AI CharacherHub</div>
@@ -362,6 +363,6 @@
         </div>
     </div>
 
-    <script src="main.js"></script>
+    <script src="{{ url_for('static', filename='main.js') }}"></script>
 </body>
 </html>

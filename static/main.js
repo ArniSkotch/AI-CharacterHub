@@ -1,3 +1,4 @@
+let currentProjectId = null;
 // САЙДБАР
 const menuBtn = document.getElementById("menuButton");
 const sidebar = document.querySelector(".sidebar");
@@ -33,19 +34,66 @@ modal.onclick = (e) => {
     }
 };
 
-createProjectBtn.onclick = () => {
-    const name = input.value.trim();
 
+createProjectBtn.onclick = async () => {
+    const name = input.value.trim();
     if (!name) return;
 
-    const item = document.createElement("div");
-    item.className = "project-item";
-    item.textContent = name;
+    const res = await fetch('/api/projects', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name })
+    });
+    const project = await res.json();
 
-    projectList.appendChild(item);
+    modal.classList.remove('active');
+    await loadProjects();
 
-    modal.classList.remove("active");
+    const el = [...projectList.children].find(d => d.dataset.id == project.id);
+    openProject(project.id, el);
 };
+
+async function loadProjects() {
+    const res = await fetch('/api/projects');
+    const projects = await res.json();
+
+    projectList.innerHTML = '';
+    projects.forEach(p => {
+        const div = document.createElement('div');
+        div.className = 'project-item';
+        div.textContent = p.name;
+        div.dataset.id = p.id;
+        div.onclick = () => openProject(p.id, div);
+        projectList.appendChild(div);
+    });
+}
+
+async function openProject(id, el) {
+    currentProjectId = id;
+
+    document.querySelectorAll('.project-item').forEach(i => i.classList.remove('active'));
+    if (el) el.classList.add('active');
+
+    const [modelsRes, criteriaRes] = await Promise.all([
+        fetch(`/api/projects/${id}/models`),
+        fetch(`/api/projects/${id}/criteria`)
+    ]);
+
+    const apiModels = await modelsRes.json();
+    const apiCriteria = await criteriaRes.json();
+
+
+    models = apiModels.map(m => ({ id: m.id, name: m.name, score: 0 }));
+    criteria = apiCriteria
+        .filter(c => c.enabled)
+        .map(c => ({ id: c.id, title: c.name, weight: c.weight * 100 }));
+
+    createScoresTable();
+    renderAllCharts();
+    sortResults();
+    updateShowMoreState();
+    updateRankList();
+}
 
 
 // ЛОГИКА ГЕНЕРАЦИИ НОВОЙ МОДЕЛИ
@@ -76,46 +124,18 @@ modelModal.onclick = (e) => {
 
 
 // ЛОГИКА ДОБАВЛЕНИЯ НОВОЙ МОДЕЛИ
-createModelBtn.onclick = () => {
+createModelBtn.onclick = async () => {
     const name = modelInput.value.trim();
-    if (!name) return;
+    if (!name || !currentProjectId) return;
 
-    const score = Math.floor(Math.random() * 51) + 50; // 50–100
+    await fetch(`/api/projects/${currentProjectId}/models`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name })
+    });
 
-    let tagText = "Приемлемая";
-    let tagClass = "ok";
-
-    if (score > 75) {
-        tagText = "Отличная";
-        tagClass = "good";
-    }
-
-    const item = document.createElement("div");
-    item.className = "rank-item";
-
-    const number = models.length + 1;
-
-    item.innerHTML = `
-        <div class="rank-number">${number}</div>
-        <div class="rank-content">
-            <div class="rank-name">${name}</div>
-            <div class="rank-bar">
-                <div class="rank-bar-fill" style="width:${score}%"></div>
-            </div>
-        </div>
-        <div class="tag ${score > 75 ? "good" : "ok"}">
-            ${score > 75 ? "Отличная" : "Приемлемая"}
-        </div>
-    `;
-
-    rankList.appendChild(item);
-    models.push({ name, score }); // обновление внутреннго списка моделей
-    createScoresTable();          // обновление списка моделей в Оценках
-    renderAllCharts();            // создание диаграмм в Результатах
-    sortResults();                // сортировка моделей в Результатах
-    updateShowMoreState();        // обновление состояния кнопки showmore в Результатах
-
-    modelModal.classList.remove("active");
+    modelModal.classList.remove('active');
+    openProject(currentProjectId); // перезагрузить проект
 };
 
 
@@ -250,39 +270,6 @@ function updateDots(container, value) {
 }
 
 
-// ДАННЫЕ ДЛЯ ПОДРАЗДЕЛА ОЦЕНОК (ЗАГЛУШКА!!!)
-let models = [
-    { name: "ResNet18", score: 92 },
-    { name: "EfficientNet", score: 67 },
-    { name: "ArpaNet", score: 84 }
-];
-
-const criteria = [
-    {
-        title: "Точность ответа",
-        weight: 70
-    },
-    {
-        title: "Логичность и структура",
-        weight: 60
-    },
-    {
-        title: "Глубина ответа",
-        weight: 80
-    },
-    {
-        title: "Устойчивость к шуму",
-        weight: 75
-    },
-    {
-        title: "Обработка сложных запросов",
-        weight: 65
-    },
-    {
-        title: "Контекстная согласованность",
-        weight: 85
-    }
-];
 
 
 // ЗАПОЛНЕНИЕ ПОДРАЗДЕЛА ОЦЕНОК ТАБЛИЦЕЙ
@@ -384,6 +371,26 @@ function createScoresTable() {
 
     // заново навесить события
     initRatingDots();
+}
+function updateRankList() {
+    rankList.innerHTML = '';
+    models.forEach((m, i) => {
+        const item = document.createElement('div');
+        item.className = 'rank-item';
+        item.innerHTML = `
+            <div class="rank-number">${i + 1}</div>
+            <div class="rank-content">
+                <div class="rank-name">${m.name}</div>
+                <div class="rank-bar">
+                    <div class="rank-bar-fill" style="width:${m.score}%"></div>
+                </div>
+            </div>
+            <div class="tag ${m.score > 75 ? 'good' : 'ok'}">
+                ${m.score > 75 ? 'Отличная' : 'Приемлемая'}
+            </div>
+        `;
+        rankList.appendChild(item);
+    });
 }
 
 // СОРТИРОВКА МОДЕЛЕЙ В РЕЗУЛЬТАТАХ
@@ -602,7 +609,8 @@ function renderAllCharts() {
 
 // ПРИ СТАРТЕ СТРАНИЦЫ
 
-createScoresTable();   // создание таблицы в Оценках
-renderAllCharts();     // создание диаграмм в Результатах
-sortResults();         // сортировка моделей в Результатах
-updateShowMoreState(); // обновление состояния кнопки showmore в Результатах
+//createScoresTable();    создание таблицы в Оценках
+//renderAllCharts();     // создание диаграмм в Результатах
+//sortResults();         // сортировка моделей в Результатах
+//updateShowMoreState(); // обновление состояния кнопки showmore в Результатах
+loadProjects();
