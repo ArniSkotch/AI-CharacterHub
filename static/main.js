@@ -1,4 +1,5 @@
 let currentProjectId = null;
+const criteriaContainer = document.getElementById("criteriaContainer");
 // САЙДБАР
 const menuBtn = document.getElementById("menuButton");
 const sidebar = document.querySelector(".sidebar");
@@ -68,8 +69,24 @@ async function loadProjects() {
     });
 }
 
+async function initApp() {
+    await loadProjects();
+
+    const lastId = localStorage.getItem("lastProjectId");
+
+    if (!lastId) return;
+
+    const el = [...document.querySelectorAll(".project-item")]
+        .find(d => d.dataset.id == lastId);
+
+    if (el) {
+        openProject(lastId, el);
+    }
+}
+
 async function openProject(id, el) {
     currentProjectId = id;
+    localStorage.setItem("lastProjectId", id);
 
     document.querySelectorAll('.project-item').forEach(i => i.classList.remove('active'));
     if (el) el.classList.add('active');
@@ -82,19 +99,64 @@ async function openProject(id, el) {
     const apiModels = await modelsRes.json();
     const apiCriteria = await criteriaRes.json();
 
+    updateProjectStats(apiModels, apiCriteria);
+    renderCriteria(apiCriteria);
+
 
     models = apiModels.map(m => ({ id: m.id, name: m.name, score: 0 }));
     criteria = apiCriteria
         .filter(c => c.enabled)
         .map(c => ({ id: c.id, title: c.name, weight: c.weight * 100 }));
 
-    createScoresTable();
-    renderAllCharts();
-    sortResults();
-    updateShowMoreState();
-    updateRankList();
+    const scoresRes = await fetch(`/api/projects/${id}/scores`);
+    const scoresData = await scoresRes.json();
+
+    Object.entries(scoresData.scores).forEach(([modelId, critMap]) => {
+        Object.entries(critMap).forEach(([criterionId, value]) => {
+
+            if (!ratings[modelId]) ratings[modelId] = {};
+            ratings[modelId][criterionId] = value;
+        });
+    });
+
+    createScoresTable(); // создание таблицы в Оценках
+
+    document.querySelectorAll(".rating-cell").forEach(cell => {
+        const criterionId = cell.dataset.criterionId;
+        const modelId = cell.dataset.modelId;
+
+        const savedValue = ratings[modelId]?.[criterionId];
+
+        if (savedValue) {
+            updateDots(cell, savedValue);
+        }
+    });
+
+    renderAllCharts();     // создание диаграмм в Результатах
+    sortResults();         // сортировка моделей в Результатах
+    updateShowMoreState(); // обновление состояния кнопки showmore в Результатах
+    updateRankList();      // обновление рейтинга моделей
 }
 
+// ОБНОВЛЕНИЕ БАЗОВЫХ СТАТИСТИК В РАЗДЕЛЕ ПРОЕКТА
+function updateProjectStats(models, criteria, results = null) {
+    const modelsEl = document.getElementById("statModels");
+    const criteriaEl = document.getElementById("statCriteria");
+    const leaderEl = document.getElementById("statLeader");
+
+    if (modelsEl) modelsEl.textContent = models.length;
+    if (criteriaEl) criteriaEl.textContent = criteria.length;
+
+    if (leaderEl && models.length) {
+        let leader = models[0];
+
+        if (results && results.length) {
+            leader = results.sort((a, b) => b.score - a.score)[0];
+        }
+
+        leaderEl.textContent = leader.name;
+    }
+}
 
 // ЛОГИКА ГЕНЕРАЦИИ НОВОЙ МОДЕЛИ
 const addModelBtn = document.getElementById("addModelBtn");
@@ -168,6 +230,71 @@ tabs.forEach(tab => {
     });
 });
 
+// ЗАПОЛНЕНИЕ СПИСКА ВКЛАДКИ КРИТЕРИЕВ
+function renderCriteria(criteriaFromApi) {
+    criteriaContainer.innerHTML = "";
+
+    const groups = {};
+
+    criteriaFromApi.forEach(c => {
+        if (!groups[c.group]) groups[c.group] = [];
+        groups[c.group].push(c);
+    });
+
+    Object.entries(groups).forEach(([groupName, items]) => {
+        const group = document.createElement("div");
+        group.className = "criteria-group";
+
+        let html = `
+            <div class="criteria-title">Группа - ${groupName}</div>
+            <div class="criteria-box">
+        `;
+
+        items.forEach(c => {
+            html += `
+                <div class="criteria-item" data-id="${c.id}">
+                    <div class="criteria-name">${c.name}</div>
+                    <div class="criteria-control">
+                        <input type="range" min="0" max="100"
+                            value="${Math.round(c.weight * 100)}"
+                            class="criteria-slider">
+                        <div class="criteria-value">${Math.round(c.weight * 100)}%</div>
+                    </div>
+                </div>
+            `;
+        });
+
+        html += `</div>`;
+        group.innerHTML = html;
+
+        criteriaContainer.appendChild(group);
+    });
+
+    attachCriteriaListeners();
+    updateCriteriaSum();
+}
+
+function attachCriteriaListeners() {
+    document.querySelectorAll(".criteria-item").forEach(item => {
+        const slider = item.querySelector(".criteria-slider");
+        const value = item.querySelector(".criteria-value");
+
+        slider.addEventListener("input", () => {
+            const sliders = Array.from(document.querySelectorAll(".criteria-slider"));
+
+            const currentTotal = sliders.reduce((sum, s) => sum + Number(s.value), 0);
+
+            const maxAllowed = 100 - (currentTotal - Number(slider.value));
+
+            let newValue = Math.max(0, Math.min(Number(slider.value), maxAllowed));
+
+            slider.value = newValue;
+            value.textContent = newValue + "%";
+
+            updateCriteriaSum();
+        });
+    });
+}
 
 // ИЗМЕНЕНИЕ ВЕСОВ КРИТЕРИЕВ
 document.querySelectorAll(".criteria-item").forEach(item => {
@@ -175,7 +302,27 @@ document.querySelectorAll(".criteria-item").forEach(item => {
     const value = item.querySelector(".criteria-value");
 
     slider.addEventListener("input", () => {
-        value.textContent = slider.value + "%";
+        const sliders = Array.from(document.querySelectorAll(".criteria-slider"));
+
+        const currentTotal = sliders.reduce((sum, s) => sum + Number(s.value), 0);
+
+        const maxAllowed = 100 - (currentTotal - Number(slider.value));
+
+        let newValue = Number(slider.value);
+        newValue = Math.max(0, Math.min(newValue, maxAllowed));
+
+        if (newValue > maxAllowed) {
+            newValue = maxAllowed;
+        }
+
+        if (newValue < 0) {
+            newValue = 0;
+        }
+
+        slider.value = newValue;
+        value.textContent = newValue + "%";
+
+        updateCriteriaSum();
     });
 });
 
@@ -195,17 +342,6 @@ function updateCriteriaSum() {
     }
 }
 
-// обновление каждого слайдера
-document.querySelectorAll(".criteria-item").forEach(item => {
-    const slider = item.querySelector(".criteria-slider");
-    const value = item.querySelector(".criteria-value");
-
-    slider.addEventListener("input", () => {
-        value.textContent = slider.value + "%";
-        updateCriteriaSum();
-    });
-});
-
 updateCriteriaSum();
 
 
@@ -221,30 +357,37 @@ function initRatingDots() {
 
     allDots.forEach(dot => {
 
-        dot.addEventListener("click", () => {
+        dot.addEventListener("click", async () => {
 
             const value = Number(dot.textContent);
 
             // текущая ячейка модели
             const container = dot.closest(".rating-cell");
 
-            const criterion =
-                container.dataset.criterion;
-
-            const model =
-                container.dataset.model;
+            const criterionId = container.dataset.criterionId;
+            const modelId = container.dataset.modelId;
 
             // создаём объект критерия
-            if (!ratings[criterion]) {
-                ratings[criterion] = {};
+            if (!ratings[modelId]) {
+                ratings[modelId] = {};
             }
 
             // сохраняем оценку
-            ratings[criterion][model] = value;
+            ratings[modelId][criterionId] = value;
 
             // обновляем визуал
             updateDots(container, value);
 
+            // синхронизация оценок с сервером
+            await fetch(`/api/projects/${currentProjectId}/scores`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify([{
+                    model_id: Number(modelId),
+                    criterion_id: Number(criterionId),
+                    value: value
+                }])
+            });
         });
 
     });
@@ -339,8 +482,8 @@ function createScoresTable() {
             rowHTML += `
                 <div 
                     class="scores-cell rating-cell"
-                    data-criterion="${criterion.title}"
-                    data-model="${model.name}"
+                    data-criterion-id="${criterion.id}"
+                    data-model-id="${model.id}"
                 >
                     <div class="rating-dots">
                         ${dotsHTML}
@@ -398,7 +541,12 @@ function renderResults() {
     const list = document.querySelector(".results-models-list");
     list.innerHTML = "";
 
-    models.forEach((m, index) => {
+    const isCollapsed = resultsBlock.classList.contains("collapsed");
+    const limit = window.innerWidth >= 1400 ? 8 : 4;
+
+    const visibleModels = isCollapsed ? models.slice(0, limit) : models;
+
+    visibleModels.forEach((m, index) => {
         const tagText = m.score > 75 ? "Отличная" : "Приемлемая";
         const tagClass = m.score > 75 ? "good" : "ok";
 
@@ -420,6 +568,8 @@ function renderResults() {
 
         list.appendChild(item);
     });
+
+    updateShowMoreState();
 }
 
 let sortMode = "rating"; // rating | name
@@ -506,11 +656,13 @@ if (resultsBlock && showMoreBtn && resultsList) {
 
             showMoreBtn.textContent = "Показать больше";
         }
+
+        renderResults();
     };
 }
 
 function updateShowMoreState() {
-    const LIMIT = 10;
+    const LIMIT = window.innerWidth >= 1400 ? 8 : 4;
 
     if (models.length <= LIMIT) {
         showMoreBtn.disabled = true;
@@ -607,10 +759,4 @@ function renderAllCharts() {
 }
 
 
-// ПРИ СТАРТЕ СТРАНИЦЫ
-
-//createScoresTable();    создание таблицы в Оценках
-//renderAllCharts();     // создание диаграмм в Результатах
-//sortResults();         // сортировка моделей в Результатах
-//updateShowMoreState(); // обновление состояния кнопки showmore в Результатах
-loadProjects();
+initApp();

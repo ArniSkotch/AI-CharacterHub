@@ -108,6 +108,7 @@ html, body {
 .sidebar {
     width: 220px;
     background: linear-gradient(180deg, var(--purple-dark) 0%, #4c1d95 100%);
+    margin-top: 40px;
     color: var(--text-on-dark);
     height: calc(100vh - var(--topbar-h));
     padding: 16px 12px;
@@ -746,12 +747,13 @@ html, body {
 }
 
 .results-rating-block {
-    flex: 0 0 calc(60% - 16px);
+    flex: 1;
     display: flex;
     flex-direction: column;
     min-height: 400px;
     max-height: 500px;
     overflow: hidden;
+    overflow-y: auto;
 }
 
 .results-block-header {
@@ -823,14 +825,15 @@ html, body {
     }
 
 .results-models-list {
+     max-height: 300px;
     display: flex;
     flex-direction: column;
     gap: 8px;
-    overflow-y: visible;
+    overflow-y: auto;
 }
 
 .show-more-btn {
-    margin-top: 12px;
+    margin-top: auto;
     width: 100%;
     padding: 10px;
     border-radius: var(--radius-pill);
@@ -859,7 +862,6 @@ html, body {
 }
 
 .results-rating-block.collapsed .results-models-list {
-    max-height: 300px;
     overflow: hidden;
 }
 
@@ -909,7 +911,7 @@ html, body {
 
 ::-webkit-scrollbar {
     width: 6px;
-    height: 6px;
+    height: 10px;
 }
 
 ::-webkit-scrollbar-track {
@@ -943,4 +945,10 @@ html, body {
         display: grid;
         grid-template-columns: repeat(2, 1fr);
     }
+}
+
+.loading .main {
+    opacity: 0.4;
+    pointer-events: none;
+    transition: opacity 0.2s ease;
 }
