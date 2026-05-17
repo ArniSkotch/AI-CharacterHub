@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="stylesheet" href="style.css">
+<title>Projects</title>
+
+</head>
+
+<body>
+    <!-- TOP BAR -->
+    <div class="topbar">
+        <div class="menu-button" id="menuButton">☰</div>
+        <img src="../static/logo.png" class="logo" alt="logo">
+
+        <div class="brand">
+            <div class="brand-title">AI CharacherHub</div>
+            <div class="brand-subtitle">платформа оценки моделей</div>
+        </div>
+    </div>
+
+    <div class="container">
+        <!-- САЙДБАР -->
+        <div class="sidebar">
+            <h3>Проекты</h3>
+            <button id="addProjectBtn">+ Добавить проект</button>
+            <div id="projectList">
+                <div class="project-item">CV Quality Test</div>
+                <div class="project-item">NLP Benchmark</div>
+                <div class="project-item">Metal Defect Models</div>
+            </div>
+        </div>
+
+        <!-- MAIN -->
+        <div class="main-wrapper">
+            <div class="tabs-wrapper">
+                <div class="tabs">
+                    <div class="tab active">Проект</div>
+                    <div class="tab">Критерии</div>
+                    <div class="tab">Оценки</div>
+                    <div class="tab">Результаты</div>
+                    <div class="tab">Анализ</div>
+                </div>
+            </div>
+
+            <div class="main">
+                <!-- ПОДРАЗДЕЛ СПИСКА МОДЕЛЕЙ -->
+                <div class="page active" id="page-project">
+                    <!-- SECTION 1 -->
+                    <div class="section">
+                        <div class="section-title">Общие сведения</div>
+
+                        <div class="cards">
+                            <div class="card">
+                                <div class="label">Моделей</div>
+                                <div class="value">5</div>
+                            </div>
+
+                            <div class="card">
+                                <div class="label">Критериев</div>
+                                <div class="value">8</div>
+                            </div>
+
+                            <div class="card">
+                                <div class="label">Лидер</div>
+                                <div class="value">ResNet18</div>
+                            </div>
+
+                        </div>
+                    </div>
+
+                    <!-- SECTION 2 -->
+                    <div class="section">
+                        <div class="section-title">Текущий рейтинг</div>
+
+                        <div class="rank-list">
+
+                            <div class="rank-item">
+                                <div class="rank-number">1</div>
+                                <div class="rank-content">
+                                    <div class="rank-top">
+                                        <div class="rank-name">ResNet18</div>
+                                    </div>
+                                    <div class="rank-bar">
+                                        <div class="rank-bar-fill" style="width: 85%"></div>
+                                    </div>
+                                </div>
+                                <div class="tag good">Отличная</div>
+                            </div>
+
+                            <div class="rank-item">
+                                <div class="rank-number">2</div>
+                                <div class="rank-content">
+                                    <div class="rank-top">
+                                        <div class="rank-name">EfficientNet</div>
+                                    </div>
+                                    <div class="rank-bar">
+                                        <div class="rank-bar-fill" style="width: 55%"></div>
+                                    </div>
+                                </div>
+                                <div class="tag ok">Приемлемая</div>
+                            </div>
+
+                            <div class="rank-item">
+                                <div class="rank-number">3</div>
+                                <div class="rank-content">
+                                    <div class="rank-top">
+                                        <div class="rank-name">ArpaNet</div>
+                                    </div>
+                                    <div class="rank-bar">
+                                        <div class="rank-bar-fill" style="width: 95%"></div>
+                                    </div>
+                                </div>
+                                <div class="tag good">Отличная</div>
+                            </div>
+                        </div>
+
+                    </div>
+
+                    <div class="model-btn-wrapper">
+                        <button id="addModelBtn">+ Добавить модель</button>
+                    </div>
+                </div>
+
+                <!-- ПОДРАЗДЕЛ КРИТЕРИЕВ -->
+                <div class="page" id="page-criteria">
+
+                    <div class="section-title">Критерии оценки</div>
+
+                    <!-- ГРУППА 1 -->
+                    <div class="criteria-group">
+                        <div class="criteria-title">Группа 1 - Точность</div>
+
+                        <div class="criteria-box">
+
+                            <div class="criteria-item">
+                                <div class="criteria-name">Точность ответа</div>
+                                <div class="criteria-control">
+                                    <input type="range" min="0" max="100" value="70" class="criteria-slider">
+                                    <div class="criteria-value">70%</div>
+                                </div>
+                            </div>
+
+                            <div class="criteria-item">
+                                <div class="criteria-name">Логичность и структура</div>
+                                <div class="criteria-control">
+                                    <input type="range" min="0" max="100" value="60" class="criteria-slider">
+                                    <div class="criteria-value">60%</div>
+                                </div>
+                            </div>
+
+                            <div class="criteria-item">
+                                <div class="criteria-name">Глубина ответа</div>
+                                <div class="criteria-control">
+                                    <input type="range" min="0" max="100" value="80" class="criteria-slider">
+                                    <div class="criteria-value">80%</div>
+                                </div>
+                            </div>
+
+                        </div>
+                    </div>
+
+                    <!-- ГРУППА 2 -->
+                    <div class="criteria-group">
+                        <div class="criteria-title">Группа 2 - Устойчивость</div>
+
+                        <div class="criteria-box">
+
+                            <div class="criteria-item">
+                                <div class="criteria-name">Устойчивость к шуму</div>
+                                <div class="criteria-control">
+                                    <input type="range" min="0" max="100" value="75" class="criteria-slider">
+                                    <div class="criteria-value">75%</div>
+                                </div>
+                            </div>
+
+                            <div class="criteria-item">
+                                <div class="criteria-name">Обработка сложных запросов</div>
+                                <div class="criteria-control">
+                                    <input type="range" min="0" max="100" value="65" class="criteria-slider">
+                                    <div class="criteria-value">65%</div>
+                                </div>
+                            </div>
+
+                        </div>
+                    </div>
+
+                    <!-- ГРУППА 3 -->
+                    <div class="criteria-group">
+                        <div class="criteria-title">Группа 3 - Контекст</div>
+
+                        <div class="criteria-box">
+
+                            <div class="criteria-item">
+                                <div class="criteria-name">Контекстная согласованность</div>
+                                <div class="criteria-control">
+                                    <input type="range" min="0" max="100" value="85" class="criteria-slider">
+                                    <div class="criteria-value">85%</div>
+                                </div>
+                            </div>
+
+                        </div>
+                    </div>
+
+                    <!-- ОБЩАЯ СУММА ВЕСОВ -->
+                    <div class="criteria-summary-box">
+                        <div class="criteria-summary-left">
+                            Сумма весов
+                        </div>
+                        <div class="criteria-summary-right" id="criteriaTotal">
+                            0%
+                        </div>
+                    </div>
+
+                </div>
+
+                <!-- ПОДРАЗДЕЛ ОЦЕНКИ -->
+                <div class="page" id="page-scores">
+                    <div class="section-title">Ввод оценок</div>
+
+                    <div class="scores-table" id="scoresTable">
+                        <!-- JS будет генерировать таблицу :) -->
+                    </div>
+                </div>
+
+                <!-- ПОДРАЗДЕЛ РЕЗУЛЬТАТОВ -->
+                <div class="page" id="page-results">
+                    <div class="section-title">Результаты оценки</div>
+
+                    <!-- ВЕРХНИЙ РЯД -->
+                    <div class="results-top-row">
+                        <!-- БЛОК РОЗЫ ВЕТРОВ -->
+                        <div class="results-radar-block">
+                            <div class="results-block-header">Сравнение моделей</div>
+                            <div class="radar-placeholder">Radar Chart</div>
+                        </div>
+
+                        <!-- БЛОК СПИСКА МОДЕЛЕЙ -->
+                        <div class="results-rating-block">
+                            <div class="results-rating-header">
+                                <div class="results-block-header">Итоговый рейтинг</div>
+                                <div class="results-controls">
+                                    <button class="sort-btn active">Рейтинг</button>
+                                    <button class="sort-btn">Название</button>
+                                    <button class="order-btn">↓</button>
+                                </div>
+                            </div>
+
+                            <!-- СПИСОК МОДЕЛЕЙ-->
+                            <div class="results-models-list">
+                                <div class="rank-item">
+                                    <div class="rank-number">1</div>
+                                    <div class="rank-content">
+                                        <div class="rank-name">ResNet18</div>
+
+                                        <div class="rank-bar">
+                                            <div class="rank-bar-fill"
+                                                style="width: 92%">
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="tag good">Отличная</div>
+                                </div>
+
+                                <div class="rank-item">
+                                    <div class="rank-number">2</div>
+
+                                    <div class="rank-content">
+                                        <div class="rank-name">ArpaNet</div>
+
+                                        <div class="rank-bar">
+                                            <div class="rank-bar-fill"
+                                                style="width: 84%">
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="tag good">Отличная</div>
+                                </div>
+
+                                <div class="rank-item">
+                                    <div class="rank-number">3</div>
+
+                                    <div class="rank-content">
+                                        <div class="rank-name">EfficientNet</div>
+
+                                        <div class="rank-bar">
+                                            <div class="rank-bar-fill"
+                                                style="width: 67%">
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="tag ok">Приемлемая</div>
+                                </div>
+                            </div>
+
+                            <button class="show-more-btn">Показать больше</button>
+                        </div>
+                    </div>
+
+                    <!-- РЕКОМЕНДАЦИИ -->
+                    <div class="results-recommendations">
+                        <div class="results-recommendations-title">
+                            Рекомендации
+                        </div>
+
+                        <div class="results-recommendations-text">
+                            Для получения рекомендаций начните оценивание
+                        </div>
+                    </div>
+
+                    <!-- СТОЛБЧАТЫЕ ДИАГРАММЫ ПО КАТЕГОРИЯМ -->
+                    <div class="results-charts">
+                        <div class="chart-block"></div>
+                        <div class="chart-block"></div>
+                        <div class="chart-block"></div>
+                    </div>
+                </div>
+
+                <!-- ПОДРАЗДЕЛ АНАЛИЗА -->
+                <div class="page" id="page-analysis">
+                    <h2>Анализ</h2>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- МОДАЛКА ДЛЯ ДОБАВЛЕНИЯ НОВОГО ПРОЕКТА -->
+    <div id="modalOverlay" class="modal-overlay">
+        <div class="modal">
+            <div class="modal-header">
+                <div class="modal-title">Создать новый проект</div>
+                <div class="modal-close" id="modalClose">✕</div>
+            </div>
+
+            <input id="projectInput" class="modal-input" placeholder="Название проекта">
+
+            <div class="modal-footer">
+                <button id="createProjectBtn" class="modal-create-btn">
+                    Создать проект
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- МОДАЛКА ДЛЯ ДОБАВЛЕНИЯ НОВОЙ МОДЕЛИ -->
+    <div id="modelModalOverlay" class="modal-overlay">
+        <div class="modal">
+            <div class="modal-header">
+                <div class="modal-title">Добавить модель</div>
+                <div class="modal-close" id="modelModalClose">✕</div>
+            </div>
+
+            <input id="modelInput" class="modal-input" placeholder="Название модели">
+
+            <div class="modal-footer">
+                <button id="createModelBtn" class="modal-create-btn">Добавить</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="main.js"></script>
+</body>
+</html>
