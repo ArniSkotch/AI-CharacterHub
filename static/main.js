@@ -125,19 +125,45 @@ async function openProject(id, el) {
     document.querySelectorAll('.project-item').forEach(i => i.classList.remove('active'));
     if (el) el.classList.add('active');
 
-    const [modelsRes, criteriaRes] = await Promise.all([
+    const [modelsRes, criteriaRes, resultsRes] = await Promise.all([
         fetch(`/api/projects/${id}/models`),
-        fetch(`/api/projects/${id}/criteria`)
+        fetch(`/api/projects/${id}/criteria`),
+        fetch(`/api/projects/${id}/results`)
     ]);
 
     const apiModels = await modelsRes.json();
     const apiCriteria = await criteriaRes.json();
+    const apiResults = await resultsRes.json();
+
+    // для тегов интегральных оценок
+    const resultsMap = {};
+
+    apiResults.forEach(r => {
+        resultsMap[r.model.id] = r;
+    });
+
+    // для интегральных оценок
+    const scoreMap = {};
+    apiResults.forEach(r => {
+        scoreMap[r.model.id] = r.K_k; 
+    });
 
     updateProjectStats(apiModels, apiCriteria);
     renderCriteria(apiCriteria);
 
 
-    models = apiModels.map(m => ({ id: m.id, name: m.name, score: 0 }));
+    models = apiModels.map(m => {
+        const r = resultsMap[m.id];
+
+        return {
+            id: m.id,
+            name: m.name,
+            score: r ? r.K_k * 100 : 0,
+            label: r ? extractTagName(r.label) : "Нет оценки"
+        };
+    });
+
+    console.log(models)
     criteria = apiCriteria
         .filter(c => c.enabled)
         .map(c => ({ id: c.id, title: c.name, weight: c.weight * 100 }));
@@ -357,8 +383,37 @@ document.querySelectorAll(".criteria-item").forEach(item => {
         value.textContent = newValue + "%";
 
         updateCriteriaSum();
+        saveCriteriaDebounced();
     });
 });
+
+// ДИНАМИЧЕСКОЕ ИЗМЕНЕНИИ ИНТЕГРАЛЬНОЙ ОЦЕНКИ С ИЗМЕНЕНИЕМ ВЕСОВ КРИТЕРИВ
+let criteriaTimeout = null;
+
+function saveCriteriaDebounced() {
+    clearTimeout(criteriaTimeout);
+
+    criteriaTimeout = setTimeout(async () => {
+        if (!currentProjectId) return;
+
+        const payload = Array.from(document.querySelectorAll(".criteria-item")).map(item => {
+            const slider = item.querySelector(".criteria-slider");
+            return {
+                id: item.dataset.id,
+                weight: slider.value / 100,
+                enabled: true
+            };
+        });
+
+        await fetch(`/api/projects/${currentProjectId}/criteria`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+        });
+
+        await refreshResults(); // 👈 ВОТ ОНО
+    }, 300);
+}
 
 // СУММА ВЕСОВ ПО ВСЕМ КРИТЕРИЯМ
 function updateCriteriaSum() {
@@ -422,6 +477,7 @@ function initRatingDots() {
                     value: value
                 }])
             });
+            await refreshResults();
         });
 
     });
@@ -549,25 +605,68 @@ function createScoresTable() {
     // заново навесить события
     initRatingDots();
 }
+
 function updateRankList() {
     rankList.innerHTML = '';
     models.forEach((m, i) => {
         const item = document.createElement('div');
+        const tagStyle = getTagStyle(m.label);
         item.className = 'rank-item';
         item.innerHTML = `
             <div class="rank-number">${i + 1}</div>
             <div class="rank-content">
                 <div class="rank-name">${m.name}</div>
-                <div class="rank-bar">
-                    <div class="rank-bar-fill" style="width:${m.score}%"></div>
+                <div class="rank-bar-container">
+                    <div class="rank-bar">
+                        <div class="rank-bar-fill" style="width:${m.score}%"></div>
+                    </div>
+                    <div class="rank-bar-text">${m.score.toFixed(1)}%</div>
                 </div>
             </div>
-            <div class="tag ${m.score > 75 ? 'good' : 'ok'}">
-                ${m.score > 75 ? 'Отличная' : 'Приемлемая'}
+            <div class="tag"
+                style="background:${tagStyle.bg}; color:${tagStyle.text};">
+                ${extractTagName(m.label)}
             </div>
         `;
         rankList.appendChild(item);
     });
+}
+
+// разеделение имени тега и комментария к нему
+function extractTagName(label) {
+    if (!label) return "";
+    return label.split("—")[0].trim();
+}
+
+const SCORE_THEME = {
+    "Отличная": {
+        bg: "#DCFCE7",
+        text: "#166534"
+    },
+    "Хорошая": {
+        bg: "#DBEAFE",
+        text: "#1E40AF"
+    },
+    "Приемлемая": {
+        bg: "#FEF3C7",
+        text: "#92400E"
+    },
+    "Слабая": {
+        bg: "#FFEDD5",
+        text: "#9A3412"
+    },
+    "Не рекомендуется": {
+        bg: "#FEE2E2",
+        text: "#991B1B"
+    }
+};
+
+function getTagStyle(label) {
+    const key = extractTagName(label); 
+    return SCORE_THEME[key] || {
+        bg: "#F3F4F6",
+        text: "#374151"
+    };
 }
 
 // СОРТИРОВКА МОДЕЛЕЙ В РЕЗУЛЬТАТАХ
@@ -581,8 +680,8 @@ function renderResults() {
     const visibleModels = isCollapsed ? models.slice(0, limit) : models;
 
     visibleModels.forEach((m, index) => {
-        const tagText = m.score > 75 ? "Отличная" : "Приемлемая";
-        const tagClass = m.score > 75 ? "good" : "ok";
+        const tagText = extractTagName(m.label);
+        const tagStyle = getTagStyle(m.label);
 
         const item = document.createElement("div");
         item.className = "rank-item";
@@ -592,18 +691,52 @@ function renderResults() {
 
             <div class="rank-content">
                 <div class="rank-name">${m.name}</div>
-                <div class="rank-bar">
-                    <div class="rank-bar-fill" style="width:${m.score}%"></div>
+                <div class="rank-bar-container">
+                    <div class="rank-bar">
+                        <div class="rank-bar-fill" style="width:${m.score}%"></div>
+                    </div>
+                    <div class="rank-bar-text">${m.score.toFixed(1)}%</div>
                 </div>
             </div>
 
-            <div class="tag ${tagClass}">${tagText}</div>
+            <div class="tag"
+                style="background:${tagStyle.bg}; color:${tagStyle.text};">
+                ${tagText}
+            </div>
         `;
 
         list.appendChild(item);
     });
 
     updateShowMoreState();
+}
+
+// обновление всех результатов
+async function refreshResults() {
+    if (!currentProjectId) return;
+
+    const resultsRes = await fetch(`/api/projects/${currentProjectId}/results`);
+    const apiResults = await resultsRes.json();
+
+    const resultsMap = {};
+    apiResults.forEach(r => {
+        resultsMap[r.model.id] = r;
+    });
+
+    // обновляем models (ВАЖНО: score + label)
+    models = models.map(m => {
+        const r = resultsMap[m.id];
+
+        return {
+            ...m,
+            score: r ? r.K_k * 100 : 0,
+            label: r ? extractTagName(r.label) : "Нет оценки"
+        };
+    });
+
+    updateRankList();
+    renderResults();
+    updateProjectStats(models, criteria, apiResults);
 }
 
 let sortMode = "rating"; // rating | name

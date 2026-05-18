@@ -1,3 +1,5 @@
+from models import Score
+
 def calculate_scores(project, weight_override=None):
     criteria = [c for c in project.criteria if c.enabled]
     weights = weight_override or {c.id: c.weight for c in criteria}
@@ -15,7 +17,10 @@ def calculate_scores(project, weight_override=None):
         )
         K_k = round(S_k / S_max, 3) if S_max > 0 else 0
         results.append({
-            'model': model,
+            'model': {
+                'id': model.id,
+                'name': model.name
+            },
             'S_k': round(S_k, 2),
             'K_k': K_k,
             'label': interpret(K_k),
