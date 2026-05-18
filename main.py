@@ -2,6 +2,7 @@ from flask import Flask, render_template, request, jsonify, session, redirect, u
 import os
 from models import db, Project, AIModel, Criterion, Score
 from calculator import calculate_scores
+import datetime
 
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///eval.db'
@@ -141,6 +142,9 @@ def save_scores(id):
 def get_results(id):
     p = Project.query.get_or_404(id)
     results = calculate_scores(p)
+    lastresult = datetime.datetime.now()
+    p.last_result = lastresult
+    db.session.commit()
     return jsonify(results)
 
 @app.get('/api/projects/<int:id>/sensitivity')
