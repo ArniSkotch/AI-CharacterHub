@@ -135,7 +135,7 @@ async function openProject(id, el) {
     renderAllCharts();     // создание диаграмм в Результатах
     sortResults();         // сортировка моделей в Результатах
     updateShowMoreState(); // обновление состояния кнопки showmore в Результатах
-    updateRankList();      // обновление рейтинга моделей
+    await updateRankList();      // обновление рейтинга моделей
 }
 
 // ОБНОВЛЕНИЕ БАЗОВЫХ СТАТИСТИК В РАЗДЕЛЕ ПРОЕКТА
@@ -158,46 +158,107 @@ function updateProjectStats(models, criteria, results = null) {
     }
 }
 
-// ЛОГИКА ГЕНЕРАЦИИ НОВОЙ МОДЕЛИ
-const addModelBtn = document.getElementById("addModelBtn");
+// ====================== БИБЛИОТЕКА МОДЕЛЕЙ ======================
+let modelsLibrary = [];
 
+async function loadModelsLibrary() {
+    try {
+        console.log("Пытаюсь загрузить /static/models_library.json");
+        const res = await fetch('/static/models_library.json');
+        console.log("Статус ответа:", res.status);
+
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+        const data = await res.json();
+        modelsLibrary = data.models || [];
+        console.log(`Успешно загружено ${modelsLibrary.length} моделей!`);
+
+        populateModelSelect();
+    } catch (e) {
+        console.error("ОШИБКА загрузки библиотеки:", e);
+    }
+}
+
+function populateModelSelect() {
+    const select = document.getElementById("modelSelect");
+    if (!select) return;
+
+    select.innerHTML = '<option value="">— Выберите модель из библиотеки —</option>';
+
+    modelsLibrary.forEach(model => {
+        const option = document.createElement('option');
+        option.value = model.name;
+        option.textContent = model.name;
+        select.appendChild(option);
+    });
+}
+
+// ====================== ДОБАВЛЕНИЕ МОДЕЛИ ======================
+const addModelBtn = document.getElementById("addModelBtn");
 const modelModal = document.getElementById("modelModalOverlay");
 const modelClose = document.getElementById("modelModalClose");
 const createModelBtn = document.getElementById("createModelBtn");
-const modelInput = document.getElementById("modelInput");
-
-const rankList = document.querySelector(".rank-list");
+const modelSelect = document.getElementById("modelSelect");
 
 addModelBtn.onclick = () => {
+    if (modelsLibrary.length === 0) {
+        alert("Библиотека моделей ещё не загружена");
+        return;
+    }
     modelModal.classList.add("active");
-    modelInput.value = "";
-    modelInput.focus();
+    modelSelect.value = "";
 };
 
-modelClose.onclick = () => {
-    modelModal.classList.remove("active");
-};
+modelClose.onclick = () => modelModal.classList.remove("active");
 
 modelModal.onclick = (e) => {
-    if (e.target === modelModal) {
-        modelModal.classList.remove("active");
-    }
+    if (e.target === modelModal) modelModal.classList.remove("active");
 };
 
-
-// ЛОГИКА ДОБАВЛЕНИЯ НОВОЙ МОДЕЛИ
 createModelBtn.onclick = async () => {
-    const name = modelInput.value.trim();
-    if (!name || !currentProjectId) return;
+    const selectedName = modelSelect.value.trim();
+    if (!selectedName || !currentProjectId) {
+        alert("Выберите модель");
+        return;
+    }
 
-    await fetch(`/api/projects/${currentProjectId}/models`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name })
-    });
+    try {
+        // 1. Создаём модель на сервере
+        const createRes = await fetch(`/api/projects/${currentProjectId}/models`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: selectedName })
+        });
 
-    modelModal.classList.remove('active');
-    openProject(currentProjectId); // перезагрузить проект
+        if (!createRes.ok) throw new Error("Ошибка создания модели");
+        const newModel = await createRes.json();
+
+        // 2. Находим оценки из библиотеки
+        const libModel = modelsLibrary.find(m => m.name === selectedName);
+        if (libModel && criteria && criteria.length > 0) {
+            const scoresPayload = libModel.scores.map((value, index) => ({
+                model_id: newModel.id,
+                criterion_id: criteria[index].id,
+                value: value
+            }));
+
+            // Сохраняем оценки
+            await fetch(`/api/projects/${currentProjectId}/scores`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(scoresPayload)
+            });
+        }
+
+        modelModal.classList.remove('active');
+
+        // Перезагружаем проект с новыми данными
+        await openProject(currentProjectId);
+
+    } catch (err) {
+        console.error(err);
+        alert("Ошибка при добавлении модели");
+    }
 };
 
 
@@ -515,24 +576,68 @@ function createScoresTable() {
     // заново навесить события
     initRatingDots();
 }
-function updateRankList() {
-    rankList.innerHTML = '';
-    models.forEach((m, i) => {
-        const item = document.createElement('div');
-        item.className = 'rank-item';
-        item.innerHTML = `
-            <div class="rank-number">${i + 1}</div>
-            <div class="rank-content">
-                <div class="rank-name">${m.name}</div>
-                <div class="rank-bar">
-                    <div class="rank-bar-fill" style="width:${m.score}%"></div>
+
+async function updateRankList() {
+    const rankListElement = document.querySelector(".rank-list");
+    if (!rankListElement) return;
+
+    try {
+        const res = await fetch(`/api/projects/${currentProjectId}/results`);
+        if (!res.ok) throw new Error("Не удалось получить результаты");
+
+        const results = await res.json();
+
+        rankListElement.innerHTML = '';
+
+        results.forEach((item, i) => {
+            const scorePercent = Math.round(item.K_k * 100);
+            const modelName = item.model.name || item.model;
+
+            const itemHTML = `
+                <div class="rank-item">
+                    <div class="rank-number">${i + 1}</div>
+                    <div class="rank-content">
+                        <div class="rank-name">${modelName}</div>
+                        <div class="rank-bar">
+                            <div class="rank-bar-fill" style="width: ${scorePercent}%"></div>
+                        </div>
+                    </div>
+                    <div class="tag ${scorePercent > 75 ? 'good' : 'ok'}">
+                        ${scorePercent > 75 ? 'Отличная' : 'Приемлемая'}
+                    </div>
                 </div>
-            </div>
-            <div class="tag ${m.score > 75 ? 'good' : 'ok'}">
-                ${m.score > 75 ? 'Отличная' : 'Приемлемая'}
-            </div>
-        `;
-        rankList.appendChild(item);
+            `;
+            rankListElement.innerHTML += itemHTML;
+        });
+
+    } catch (err) {
+        console.warn("Не удалось загрузить результаты с сервера, используем локальный расчёт", err);
+        renderRankListFallback();
+    }
+}
+
+function renderRankListFallback() {
+    const rankListElement = document.querySelector(".rank-list");
+    if (!rankListElement || !models) return;
+
+    rankListElement.innerHTML = '';
+
+    models.forEach((m, i) => {
+        const score = m.score || 70;
+        const html = `
+            <div class="rank-item">
+                <div class="rank-number">${i + 1}</div>
+                <div class="rank-content">
+                    <div class="rank-name">${m.name}</div>
+                    <div class="rank-bar">
+                        <div class="rank-bar-fill" style="width: ${score}%"></div>
+                    </div>
+                </div>
+                <div class="tag ${score > 75 ? 'good' : 'ok'}">
+                    ${score > 75 ? 'Отличная' : 'Приемлемая'}
+                </div>
+            </div>`;
+        rankListElement.innerHTML += html;
     });
 }
 
@@ -759,4 +864,5 @@ function renderAllCharts() {
 }
 
 
+loadModelsLibrary();
 initApp();

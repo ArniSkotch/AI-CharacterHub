@@ -274,7 +274,7 @@
         </div>
     </div>
 
-    <!-- МОДАЛКА ДЛЯ ДОБАВЛЕНИЯ НОВОЙ МОДЕЛИ -->
+        <!-- МОДАЛКА ДЛЯ ДОБАВЛЕНИЯ НОВОЙ МОДЕЛИ -->
     <div id="modelModalOverlay" class="modal-overlay">
         <div class="modal">
             <div class="modal-header">
@@ -282,10 +282,12 @@
                 <div class="modal-close" id="modelModalClose">✕</div>
             </div>
 
-            <input id="modelInput" class="modal-input" placeholder="Название модели">
+            <select id="modelSelect" class="modal-input">
+                <option value="">— Выберите модель из библиотеки —</option>
+            </select>
 
             <div class="modal-footer">
-                <button id="createModelBtn" class="modal-create-btn">Добавить</button>
+                <button id="createModelBtn" class="modal-create-btn">Добавить модель</button>
             </div>
         </div>
     </div>
