@@ -1,4 +1,5 @@
 let currentProjectId = null;
+let hasInitialProject = false;
 const criteriaContainer = document.getElementById("criteriaContainer");
 // САЙДБАР
 const menuBtn = document.getElementById("menuButton");
@@ -69,24 +70,57 @@ async function loadProjects() {
     });
 }
 
+// ЛОГИКА СТАРТОВОГО ЭКРАНА
+function setProjectState(hasProject) {
+    const emptyState = document.getElementById("emptyProjectState");
+    const projectContent = document.getElementById("projectContent");
+
+    // если ранее был выбран проект
+    if (!emptyState || !projectContent) return;
+
+    // логика: клиент впервые заходит на сайт и ещё не открывал проекты
+    if (hasProject) {
+        emptyState.classList.add("hidden");
+        projectContent.classList.remove("hidden");
+    } else {
+        emptyState.classList.remove("hidden");
+        projectContent.classList.add("hidden");
+    }
+
+    tabs.forEach(tab => {
+        const name = tab.textContent.trim();
+        if (name === "Проект") return;
+
+        tab.classList.toggle("disabled", !hasProject);
+    });
+}
+
+// WEBSITE ENTRY POINT
 async function initApp() {
     await loadProjects();
 
     const lastId = localStorage.getItem("lastProjectId");
 
-    if (!lastId) return;
+    if (!lastId) {
+        setProjectState(false);
+        return;
+    }
 
     const el = [...document.querySelectorAll(".project-item")]
         .find(d => d.dataset.id == lastId);
 
-    if (el) {
-        openProject(lastId, el);
+    if (!el) {
+        setProjectState(false);
+        return;
     }
+
+    await openProject(lastId, el);
 }
 
 async function openProject(id, el) {
     currentProjectId = id;
     localStorage.setItem("lastProjectId", id);
+    setProjectState(true); // проверка необходимости приветственного экрана
 
     document.querySelectorAll('.project-item').forEach(i => i.classList.remove('active'));
     if (el) el.classList.add('active');
@@ -758,5 +792,8 @@ function renderAllCharts() {
     });
 }
 
-
-initApp();
+// ОТВЕЧАЕТ ЗА СТАРТ СТРАНИЦЫ
+document.addEventListener("DOMContentLoaded", async () => {
+    await initApp();
+    document.body.classList.remove("booting");
+});

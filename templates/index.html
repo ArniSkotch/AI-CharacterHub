@@ -9,11 +9,11 @@
 </head>
 
 
-<body>
+<body class="booting">
     <!-- TOP BAR -->
     <div class="topbar">
         <div class="menu-button" id="menuButton">☰</div>
-        <<img src="{{ url_for('static', filename='logo.png') }}" class="logo" alt="logo">
+        <img src="{{ url_for('static', filename='logo.png') }}" class="logo" alt="logo">
 
         <div class="brand">
             <div class="brand-title">AI CharacherHub</div>
@@ -48,79 +48,60 @@
             <div class="main">
                 <!-- ПОДРАЗДЕЛ СПИСКА МОДЕЛЕЙ -->
                 <div class="page active" id="page-project">
-                    <!-- SECTION 1 -->
-                    <div class="section">
-                        <div class="section-title">Общие сведения</div>
 
-                        <div class="cards">
-                            <div class="card">
-                                <div class="label">Моделей</div>
-                                <div class="value" id="statModels">0</div>
-                            </div>
+                    <!-- EMPTY STATE -->
+                    <div id="emptyProjectState" class="empty-project-state">
+                        <img src="{{ url_for('static', filename='diagram.png') }}"
+                            class="empty-project-image"
+                            alt="empty">
 
-                            <div class="card">
-                                <div class="label">Критериев</div>
-                                <div class="value" id="statCriteria">8</div>
-                            </div>
+                        <div class="empty-project-title">
+                            Для начала работы создайте или выберите проект
+                        </div>
 
-                            <div class="card">
-                                <div class="label">Лидер</div>
-                                <div class="value" id="statLeader">ResNet18</div>
-                            </div>
-
+                        <div class="empty-project-subtitle">
+                            После выбора проекта станут доступны критерии,
+                            оценка моделей и аналитика.
                         </div>
                     </div>
 
-                    <!-- SECTION 2 -->
-                    <div class="section">
-                        <div class="section-title">Текущий рейтинг</div>
+                    <!-- ОСНОВНОЙ КОНТЕНТ ПРОЕКТА -->
+                    <div id="projectContent" class="hidden">
 
-                        <div class="rank-list">
+                        <!-- SECTION 1 -->
+                        <div class="section">
+                            <div class="section-title">Общие сведения</div>
 
-                            <div class="rank-item">
-                                <div class="rank-number">1</div>
-                                <div class="rank-content">
-                                    <div class="rank-top">
-                                        <div class="rank-name">ResNet18</div>
-                                    </div>
-                                    <div class="rank-bar">
-                                        <div class="rank-bar-fill" style="width: 85%"></div>
-                                    </div>
+                            <div class="cards">
+                                <div class="card">
+                                    <div class="label">Моделей</div>
+                                    <div class="value" id="statModels">0</div>
                                 </div>
-                                <div class="tag good">Отличная</div>
-                            </div>
 
-                            <div class="rank-item">
-                                <div class="rank-number">2</div>
-                                <div class="rank-content">
-                                    <div class="rank-top">
-                                        <div class="rank-name">EfficientNet</div>
-                                    </div>
-                                    <div class="rank-bar">
-                                        <div class="rank-bar-fill" style="width: 55%"></div>
-                                    </div>
+                                <div class="card">
+                                    <div class="label">Критериев</div>
+                                    <div class="value" id="statCriteria">8</div>
                                 </div>
-                                <div class="tag ok">Приемлемая</div>
-                            </div>
 
-                            <div class="rank-item">
-                                <div class="rank-number">3</div>
-                                <div class="rank-content">
-                                    <div class="rank-top">
-                                        <div class="rank-name">ArpaNet</div>
-                                    </div>
-                                    <div class="rank-bar">
-                                        <div class="rank-bar-fill" style="width: 95%"></div>
-                                    </div>
+                                <div class="card">
+                                    <div class="label">Лидер</div>
+                                    <div class="value" id="statLeader">-</div>
                                 </div>
-                                <div class="tag good">Отличная</div>
                             </div>
                         </div>
 
-                    </div>
+                        <!-- SECTION 2 -->
+                        <div class="section">
+                            <div class="section-title">Текущий рейтинг</div>
 
-                    <div class="model-btn-wrapper">
-                        <button id="addModelBtn">+ Добавить модель</button>
+                            <!-- ЗАПОЛНЯЕТСЯ ПРИ ВЫБОРЕ ПРОЕКТА -->
+                            <div class="rank-list"></div>
+                        </div>
+
+                        <div class="model-btn-wrapper">
+                            <button id="addModelBtn">+ Добавить модель</button>
+                        </div>
+
                     </div>
                 </div>
 
@@ -175,55 +156,8 @@
                                 </div>
                             </div>
 
-                            <!-- СПИСОК МОДЕЛЕЙ-->
-                            <div class="results-models-list">
-                                <div class="rank-item">
-                                    <div class="rank-number">1</div>
-                                    <div class="rank-content">
-                                        <div class="rank-name">ResNet18</div>
-
-                                        <div class="rank-bar">
-                                            <div class="rank-bar-fill"
-                                                style="width: 92%">
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div class="tag good">Отличная</div>
-                                </div>
-
-                                <div class="rank-item">
-                                    <div class="rank-number">2</div>
-
-                                    <div class="rank-content">
-                                        <div class="rank-name">ArpaNet</div>
-
-                                        <div class="rank-bar">
-                                            <div class="rank-bar-fill"
-                                                style="width: 84%">
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div class="tag good">Отличная</div>
-                                </div>
-
-                                <div class="rank-item">
-                                    <div class="rank-number">3</div>
-
-                                    <div class="rank-content">
-                                        <div class="rank-name">EfficientNet</div>
-
-                                        <div class="rank-bar">
-                                            <div class="rank-bar-fill"
-                                                style="width: 67%">
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div class="tag ok">Приемлемая</div>
-                                </div>
-                            </div>
+                            <!-- СПИСОК МОДЕЛЕЙ - ЗАПОЛНЯЕТСЯ ПРИ ВЫБОРЕ ПРОЕКТА -->
+                            <div class="results-models-list"></div>
 
                             <button class="show-more-btn">Показать больше</button>
                         </div>
