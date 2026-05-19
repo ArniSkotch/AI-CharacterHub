@@ -879,50 +879,78 @@ function getTopModels(group) {
 }
 
 // рендер холста под диаграммы
-function renderChart(container, group) {
+async function renderChart(container, group) {
+    if (!currentProjectId) return;
 
-    const top = getTopModels(group);
+    try {
+        const res = await fetch(
+            `/api/projects/${currentProjectId}/top-models?group=${encodeURIComponent(group.name)}`
+        );
 
-    container.innerHTML = `
-        <div class="results-block-header">${group.name}</div>
-        <div class="chart-bars"></div>
-    `;
+        if (!res.ok) throw new Error('Failed to fetch top models');
 
-    const bars = container.querySelector(".chart-bars");
+        const topModels = await res.json();
 
-    top.forEach(item => {
-
-        const bar = document.createElement("div");
-        bar.style.display = "flex";
-        bar.style.alignItems = "center";
-        bar.style.gap = "8px";
-        bar.style.marginTop = "10px";
-
-        bar.innerHTML = `
-            <div style="width: 80px; font-size: 12px;">
-                ${item.model.name}
-            </div>
-
-            <div style="flex: 1; height: 10px; background:#e5e7eb; border-radius: 999px; overflow:hidden;">
-                <div style="width:${item.score}%; height:100%; background:#3b82f6;"></div>
-            </div>
-
-            <div style="width: 40px; font-size: 12px;">
-                ${item.score.toFixed(1)}
-            </div>
+        container.innerHTML = `
+            <div class="results-block-header">${group.name}</div>
+            <div class="chart-bars"></div>
         `;
 
-        bars.appendChild(bar);
-    });
+        const barsContainer = container.querySelector(".chart-bars");
+
+        if (topModels.length === 0) {
+            barsContainer.innerHTML = `<div style="padding: 20px; color: #888; text-align: center;">Нет данных</div>`;
+            return;
+        }
+
+        topModels.forEach(item => {
+            const percentage = (item.score * 20).toFixed(1); // переводим из 1-5 в проценты (примерно)
+
+            const bar = document.createElement("div");
+            bar.style.display = "flex";
+            bar.style.alignItems = "center";
+            bar.style.gap = "10px";
+            bar.style.marginTop = "12px";
+
+            bar.innerHTML = `
+                <div style="width: 85px; font-size: 13px; font-weight: 600;">
+                    ${item.model_name}
+                </div>
+
+                <div style="flex: 1; height: 11px; background:#e5e7eb; border-radius: 999px; overflow:hidden;">
+                    <div style="width:${percentage}%; height:100%; background:linear-gradient(90deg, #8b5cf6, #c084fc);"></div>
+                </div>
+
+                <div style="width: 48px; font-size: 13px; font-family: 'Space Mono', monospace; text-align:right;">
+                    ${percentage}%
+                </div>
+            `;
+
+            barsContainer.appendChild(bar);
+        });
+
+    } catch (e) {
+        console.error("Error loading top models for", group.name, e);
+        container.innerHTML = `
+            <div class="results-block-header">${group.name}</div>
+            <div style="padding: 30px; color: #999; text-align: center; font-size: 14px;">
+                Не удалось загрузить данные
+            </div>
+        `;
+    }
 }
 
 // рендер 3 диаграмм
-function renderAllCharts() {
+async function renderAllCharts() {
     const blocks = document.querySelectorAll(".chart-block");
 
-    blocks.forEach((block, i) => {
-        renderChart(block, criteriaGroups[i]);
-    });
+    await Promise.all(
+        Array.from(blocks).map((block, i) => {
+            const group = criteriaGroups[i];
+            if (group) return renderChart(block, group);
+            return Promise.resolve();
+        })
+    );
 }
 
 // ОТВЕЧАЕТ ЗА СТАРТ СТРАНИЦЫ
