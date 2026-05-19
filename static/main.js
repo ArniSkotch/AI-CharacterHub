@@ -482,6 +482,7 @@ async function openProject(id, el) {
     sortResults();         // сортировка моделей в Результатах
     updateShowMoreState(); // обновление состояния кнопки showmore в Результатах
     updateRankList();      // обновление рейтинга моделей
+    await renderRadarChart();
 }
 
 // ОБНОВЛЕНИЕ БАЗОВЫХ СТАТИСТИК В РАЗДЕЛЕ ПРОЕКТА
@@ -1027,6 +1028,7 @@ async function refreshResults() {
         renderResults();
         updateProjectStats(models, criteria, apiResults);
         await renderAllCharts();
+        await renderRadarChart();
 
     } catch (e) {
         console.error("Ошибка обновления результатов:", e);
@@ -1245,6 +1247,137 @@ async function renderAllCharts() {
             return Promise.resolve();
         })
     );
+
+    await renderRadarChart();
+}
+
+// TESTTESTTEST
+
+let radarChartInstance = null;
+
+async function renderRadarChart() {
+    if (!currentProjectId) return;
+
+    const canvas = document.getElementById('radarChart');
+    if (!canvas) return;
+
+    const res = await fetch(`/api/projects/${currentProjectId}/results`);
+    const results = await res.json();
+
+    if (results.length === 0) {
+        if (radarChartInstance) radarChartInstance.destroy();
+        return;
+    }
+
+    const labels = ['Точность', 'Устойчивость', 'Контекст'];
+
+    const datasets = results.slice(0, 5).map((result, index) => {  // максимум 5 моделей
+        const model = result.model;
+        const scores = {
+            'Точность': calculateGroupScoreByName(model.id, 'Точность'),
+            'Устойчивость': calculateGroupScoreByName(model.id, 'Устойчивость'),
+            'Контекст': calculateGroupScoreByName(model.id, 'Контекст')
+        };
+
+        const colors = [
+            '#8b5cf6', '#ec4899', '#14b8a6', '#f59e0b', '#3b82f6'
+        ];
+
+        return {
+            label: model.name,
+            data: labels.map(label => scores[label] || 0),
+            fill: true,
+            backgroundColor: colors[index % colors.length] + '33',
+            borderColor: colors[index % colors.length],
+            borderWidth: 3,
+            pointBackgroundColor: colors[index % colors.length],
+            pointBorderColor: '#fff',
+            pointHoverBorderColor: '#fff',
+            pointRadius: 5,
+            pointHoverRadius: 7
+        };
+    });
+
+
+    if (radarChartInstance) {
+        radarChartInstance.destroy();
+    }
+
+    radarChartInstance = new Chart(canvas, {
+        type: 'radar',
+        data: {
+            labels: labels,
+            datasets: datasets
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            scales: {
+                r: {
+                    min: 0,
+                    max: 5,
+                    ticks: {
+                        stepSize: 1,
+                        font: { size: 11 }
+                    },
+                    grid: {
+                        color: '#e2e8f0'
+                    },
+                    angleLines: {
+                        color: '#e2e8f0'
+                    },
+                    pointLabels: {
+                        font: {
+                            size: 13,
+                            weight: '600'
+                        },
+                        color: '#4b5563'
+                    }
+                }
+            },
+            plugins: {
+                legend: {
+                    position: 'top',
+                    labels: {
+                        padding: 15,
+                        boxWidth: 12,
+                        font: { size: 12 }
+                    }
+                },
+                tooltip: {
+                    callbacks: {
+                        label: (ctx) => `${ctx.raw.toFixed(2)}`
+                    }
+                }
+            }
+        }
+    });
+}
+
+
+function calculateGroupScoreByName(modelId, groupName) {
+    const groupCriteria = {
+        'Точность': ['Точность ответа', 'Логичность и структура', 'Глубина и полнота ответа', 'Гибкость в интерпретации', 'Адекватность формата'],
+        'Устойчивость': ['Устойчивость к нагрузке', 'Обработка сложных запросов', 'Восприятие неоднозначности', 'Анализ и синтез информации'],
+        'Контекст': ['Контекстная согласованность', 'Адаптивность к стилю', 'Чувствительность к контексту']
+    };
+
+    const criteriaInGroup = criteria.filter(c =>
+        groupCriteria[groupName]?.includes(c.title)
+    );
+
+    if (criteriaInGroup.length === 0) return 0;
+
+    let total = 0;
+    let weightSum = 0;
+
+    criteriaInGroup.forEach(crit => {
+        const value = ratings[modelId]?.[crit.id] || 0;
+        total += value * crit.weight;
+        weightSum += crit.weight;
+    });
+
+    return weightSum ? total / weightSum : 0;
 }
 
 // ОТВЕЧАЕТ ЗА СТАРТ СТРАНИЦЫ
