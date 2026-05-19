@@ -78,6 +78,17 @@ def create_model(id):
 
     m = AIModel(name=name, project_id=id)
     db.session.add(m)
+    db.session.flush()
+
+    criteria = Criterion.query.filter_by(project_id=id, enabled=True).all()
+
+    for c in criteria:
+        db.session.add(Score(
+            model_id=m.id,
+            criterion_id=c.id,
+            value=3
+        ))
+
     db.session.commit()
     return jsonify({'id': m.id, 'name': m.name}), 201
 
@@ -132,7 +143,7 @@ def get_scores(id):
         result[m.id] = {}
         for c in criteria:
             s = Score.query.filter_by(model_id=m.id, criterion_id=c.id).first()
-            result[m.id][c.id] = s.value if s else 0
+            result[m.id][c.id] = s.value if s else 3
 
     return jsonify({
         'models': [{'id': m.id, 'name': m.name} for m in models],
