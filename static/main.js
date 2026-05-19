@@ -559,7 +559,7 @@ const pages = {
 };
 
 tabs.forEach(tab => {
-    tab.addEventListener("click", () => {
+    tab.addEventListener("click", async () => {
 
         // убрать active у всех tabs
         tabs.forEach(t => t.classList.remove("active"));
@@ -572,6 +572,10 @@ tabs.forEach(tab => {
         const name = tab.textContent.trim();
         if (pages[name]) {
             pages[name].classList.add("active");
+
+            if (name === "Результаты" && currentProjectId) {
+                await renderAllCharts();
+            }
         }
     });
 });
@@ -1001,28 +1005,32 @@ function renderResults() {
 async function refreshResults() {
     if (!currentProjectId) return;
 
-    const resultsRes = await fetch(`/api/projects/${currentProjectId}/results`);
-    const apiResults = await resultsRes.json();
+    try {
+        const resultsRes = await fetch(`/api/projects/${currentProjectId}/results`);
+        const apiResults = await resultsRes.json();
 
-    const resultsMap = {};
-    apiResults.forEach(r => {
-        resultsMap[r.model.id] = r;
-    });
+        const resultsMap = {};
+        apiResults.forEach(r => {
+            resultsMap[r.model.id] = r;
+        });
 
-    // обновляем models (ВАЖНО: score + label)
-    models = models.map(m => {
-        const r = resultsMap[m.id];
+        models = models.map(m => {
+            const r = resultsMap[m.id];
+            return {
+                ...m,
+                score: r ? r.K_k * 100 : 0,
+                label: r ? extractTagName(r.label) : "Нет оценки"
+            };
+        });
 
-        return {
-            ...m,
-            score: r ? r.K_k * 100 : 0,
-            label: r ? extractTagName(r.label) : "Нет оценки"
-        };
-    });
+        updateRankList();
+        renderResults();
+        updateProjectStats(models, criteria, apiResults);
+        await renderAllCharts();
 
-    updateRankList();
-    renderResults();
-    updateProjectStats(models, criteria, apiResults);
+    } catch (e) {
+        console.error("Ошибка обновления результатов:", e);
+    }
 }
 
 let sortMode = "rating"; // rating | name
