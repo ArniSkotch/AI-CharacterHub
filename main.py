@@ -52,6 +52,17 @@ def delete_project(id):
     db.session.commit()
     return jsonify({'ok': True})
 
+@app.patch('/api/projects/<int:id>')
+def update_project(id):
+    p = Project.query.get_or_404(id)
+    data = request.get_json()
+    name = data.get('name', '').strip()
+    if not name:
+        return jsonify({'error': 'Название не может быть пустым'}), 400
+    p.name = name
+    db.session.commit()
+    return jsonify({'id': p.id, 'name': p.name})
+
 @app.get('/api/projects/<int:id>/models')
 def get_models(id):
     models = AIModel.query.filter_by(project_id=id).all()

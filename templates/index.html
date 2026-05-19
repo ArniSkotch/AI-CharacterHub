@@ -6,6 +6,9 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 <title>Projects</title>
 
+<!--вроде можно перенести ссылку в статикс-->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
 </head>
 
 
@@ -142,7 +145,9 @@
                         <!-- БЛОК РОЗЫ ВЕТРОВ -->
                         <div class="results-radar-block">
                             <div class="results-block-header">Сравнение моделей</div>
-                            <div class="radar-placeholder">Radar Chart</div>
+                            <div class="radar-container">
+                                <canvas id="radarChart" width="400" height="400"></canvas>
+                            </div>
                         </div>
 
                         <!-- БЛОК СПИСКА МОДЕЛЕЙ -->
@@ -190,15 +195,29 @@
         </div>
     </div>
 
-    <!-- МОДАЛКА ДЛЯ ДОБАВЛЕНИЯ НОВОГО ПРОЕКТА -->
+    <!-- УНИВЕРСАЛЬНАЯ МОДАЛКА ПРОЕКТОВ -->
     <div id="modalOverlay" class="modal-overlay">
         <div class="modal">
+
             <div class="modal-header">
-                <div class="modal-title">Создать новый проект</div>
+                <div class="modal-title" id="projectModalTitle">
+                    Создать новый проект
+                </div>
+
                 <div class="modal-close" id="modalClose">✕</div>
             </div>
 
-            <input id="projectInput" class="modal-input" placeholder="Название проекта">
+            <!-- ТЕКСТ ДЛЯ DELETE -->
+            <div class="modal-description hidden" id="projectModalDescription">
+                Вы уверены?
+            </div>
+
+            <!-- INPUT FIELD -->
+            <input
+                id="projectInput"
+                class="modal-input"
+                placeholder="Название проекта"
+            >
 
             <div class="modal-footer">
                 <button id="createProjectBtn" class="modal-create-btn">
