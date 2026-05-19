@@ -219,6 +219,11 @@ body.booting .main-wrapper {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    position: relative;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-right: 8px;
 }
 
 .project-item:hover,
@@ -227,14 +232,6 @@ body.booting .main-wrapper {
     transform: translateX(3px);
 }
 
-/* Обновляем существующий .project-item для выравнивания */
-.project-item {
-    position: relative;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding-right: 8px;
-}
 .project-item .project-name {
     flex: 1;
     overflow: hidden;
@@ -715,6 +712,48 @@ body.booting .main-wrapper {
     display: block;
     margin: 0 auto;
     object-fit: contain;
+}
+
+/* Стили для кнопки "..." у моделей */
+.model-ellipsis {
+    opacity: 0;
+    transition: opacity 0.2s;
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 18px;
+    line-height: 1;
+    color: var(--text-secondary);
+    user-select: none;
+    margin-left: auto; /* Прижимает вправо во flex-контейнере */
+    margin-right: 10px;
+}
+
+.rank-item:hover .model-ellipsis {
+    opacity: 1;
+}
+
+.model-ellipsis:hover {
+    background: var(--purple-pale);
+    color: var(--purple-mid);
+}
+
+/* Контекстное меню для моделей */
+#modelContextMenu {
+    position: fixed;
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-pop);
+    padding: 6px 0;
+    z-index: 5000;
+    display: none;
+    min-width: 160px;
+    animation: fadeUp 0.15s ease-out;
+}
+
+#modelContextMenu.visible {
+    display: block;
 }
 
 /* ===== CRITERIA ===== */

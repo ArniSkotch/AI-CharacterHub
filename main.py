@@ -81,6 +81,17 @@ def create_model(id):
     db.session.commit()
     return jsonify({'id': m.id, 'name': m.name}), 201
 
+@app.patch('/api/projects/<int:id>/models/<int:mid>')
+def update_model(id, mid):
+    m = AIModel.query.filter_by(id=mid, project_id=id).first_or_404()
+    data = request.get_json()
+    name = data.get('name', '').strip()
+    if not name:
+        return jsonify({'error': 'Название не может быть пустым'}), 400
+    m.name = name
+    db.session.commit()
+    return jsonify({'id': m.id, 'name': m.name})
+
 @app.delete('/api/projects/<int:id>/models/<int:mid>')
 def delete_model(id, mid):
     m = AIModel.query.filter_by(id=mid, project_id=id).first_or_404()

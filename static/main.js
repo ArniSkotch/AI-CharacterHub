@@ -357,6 +357,70 @@ async function loadProjects() {
     });
 }
 
+// ===== КОНТЕКСТНОЕ МЕНЮ МОДЕЛЕЙ =====
+const modelCtxMenu = document.createElement('div');
+
+modelCtxMenu.id = 'modelContextMenu';
+
+modelCtxMenu.innerHTML = `
+    <div class="context-menu-item" id="ctxModelRename">
+        Переименовать
+    </div>
+
+    <div class="context-menu-item delete" id="ctxModelDelete">
+        Удалить
+    </div>
+`;
+
+document.body.appendChild(modelCtxMenu);
+
+let ctxModelTargetId = null;
+
+function showModelCtxMenu(id, btn) {
+    ctxModelTargetId = id;
+
+    const rect = btn.getBoundingClientRect();
+
+    modelCtxMenu.style.top = `${rect.bottom + 5}px`;
+
+    modelCtxMenu.style.left =
+        `${Math.min(rect.left - 140, window.innerWidth - 170)}px`;
+
+    modelCtxMenu.classList.add('visible');
+}
+
+// закрытие при клике вне меню
+document.addEventListener('click', (e) => {
+    if (!modelCtxMenu.contains(e.target)) {
+        modelCtxMenu.classList.remove('visible');
+    }
+});
+
+// ПЕРЕИМЕНОВАНИЕ МОДЕЛИ
+document.getElementById('ctxModelRename').onclick = () => {
+
+    const model = models.find(m => m.id == ctxModelTargetId);
+
+    const currentName = model?.name || "Модель";
+
+    openRenameModelModal(ctxModelTargetId, currentName);
+
+    modelCtxMenu.classList.remove('visible');
+};
+
+// УДАЛЕНИЕ МОДЕЛИ
+document.getElementById('ctxModelDelete').onclick = () => {
+
+    const model = models.find(m => m.id == ctxModelTargetId);
+
+    const currentName = model?.name || "Модель";
+
+    openDeleteModelModal(ctxModelTargetId, currentName);
+
+    modelCtxMenu.classList.remove('visible');
+};
+
+
 // ЛОГИКА СТАРТОВОГО ЭКРАНА
 function setProjectState(hasProject) {
     const emptyState = document.getElementById("emptyProjectState");
@@ -516,6 +580,20 @@ const modelInput = document.getElementById("modelInput");
 const rankList = document.querySelector(".rank-list");
 
 addModelBtn.onclick = () => {
+    modelModalMode = "create";
+    editingModelId = null;
+    modelModalTitle.textContent = "Добавить модель";
+
+    modelModalDescription.classList.add("hidden");
+    modelModalDescription.innerHTML = " ";
+
+    modelInput.classList.remove("hidden");
+
+    createModelBtn.textContent = "Добавить";
+    createModelBtn.classList.remove("danger");
+    createModelBtn.classList.remove("holding");
+    createModelBtn.style.setProperty("--hold-progress", "0%");
+
     modelModal.classList.add("active");
     modelInput.value = "";
     modelInput.focus();
@@ -523,29 +601,152 @@ addModelBtn.onclick = () => {
 
 modelClose.onclick = () => {
     modelModal.classList.remove("active");
+    cancelModelHoldDelete();
 };
 
 modelModal.onclick = (e) => {
     if (e.target === modelModal) {
         modelModal.classList.remove("active");
+        cancelModelHoldDelete();
     }
 };
 
 
 // ЛОГИКА ДОБАВЛЕНИЯ НОВОЙ МОДЕЛИ
 createModelBtn.onclick = async () => {
-    const name = modelInput.value.trim();
-    if (!name || !currentProjectId) return;
+    if (modelModalMode === "delete") return;
 
-    await fetch(`/api/projects/${currentProjectId}/models`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name })
-    });
+    if (modelModalMode === "create") {
+        const name = modelInput.value.trim();
+        if (!name || !currentProjectId) return;
 
-    modelModal.classList.remove('active');
-    openProject(currentProjectId); // перезагрузить проект
+        await fetch(`/api/projects/${currentProjectId}/models`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name })
+        });
+        modelModal.classList.remove('active');
+        openProject(currentProjectId);
+    }
+
+    if (modelModalMode === "rename") {
+        const newName = modelInput.value.trim();
+        if (!newName) return;
+
+        await fetch(`/api/projects/${currentProjectId}/models/${editingModelId}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: newName })
+        });
+        modelModal.classList.remove('active');
+        openProject(currentProjectId);
+    }
 };
+
+// Обработчики удержания для удаления
+createModelBtn.addEventListener("mousedown", () => { if (modelModalMode === "delete") startModelHoldDelete(); });
+createModelBtn.addEventListener("mouseup", () => { if (modelModalMode === "delete") cancelModelHoldDelete(); });
+createModelBtn.addEventListener("mouseleave", () => { if (modelModalMode === "delete") cancelModelHoldDelete(); });
+createModelBtn.addEventListener("touchstart", () => { if (modelModalMode === "delete") startModelHoldDelete(); });
+createModelBtn.addEventListener("touchend", cancelModelHoldDelete);
+
+// ===== ЛОГИКА МОДЕЛЕЙ (ПЕРЕИМЕНОВАНИЕ / УДАЛЕНИЕ) =====
+let modelModalMode = "create"; // create | rename | delete
+let editingModelId = null;
+let modelHoldStart = 0;
+let modelHoldProgressInterval = null;
+
+const modelModalTitle = document.getElementById("modelModalTitle");
+const modelModalDescription = document.getElementById("modelModalDescription");
+
+function openRenameModelModal(modelId, currentName) {
+    modelModalMode = "rename";
+    editingModelId = modelId;
+
+    modelModalTitle.textContent = "Переименовать модель";
+
+    modelModalDescription.classList.add("hidden");
+    modelInput.classList.remove("hidden");
+
+    modelInput.value = currentName;
+
+    createModelBtn.textContent = "Сохранить";
+    createModelBtn.className = "modal-create-btn";
+
+    modelModal.classList.add("active");
+}
+
+function openDeleteModelModal(modelId, currentName) {
+    modelModalMode = "delete";
+    editingModelId = modelId;
+
+    modelModalTitle.textContent = "Удаление модели";
+
+    modelInput.classList.add("hidden");
+
+    modelModalDescription.classList.remove("hidden");
+    modelModalDescription.innerHTML = `
+        <div class="modal-warning-text">
+            Удалить модель «${currentName}»?
+        </div>
+    `;
+
+    createModelBtn.textContent = "Удалить";
+    createModelBtn.className = "modal-create-btn danger";
+
+    modelModal.classList.add("active");
+}
+
+function startModelHoldDelete() {
+    if (modelModalMode !== "delete") return;
+    if (modelHoldProgressInterval) return;
+    const btn = createModelBtn;
+    let progress = 0;
+    const duration = 200;
+
+    btn.classList.add("holding");
+    modelHoldStart = Date.now();
+
+    modelHoldProgressInterval = setInterval(() => {
+        const elapsed = Date.now() - modelHoldStart;
+        progress = Math.min(elapsed / duration, 1);
+        btn.style.setProperty("--hold-progress", `${progress * 100}%`);
+
+        if (progress >= 1) {
+            clearInterval(modelHoldProgressInterval);
+            executeModelDelete();
+        }
+    }, 16);
+}
+
+function resetModelHoldState() {
+    const btn = createModelBtn;
+    btn.classList.remove("holding");
+    btn.style.pointerEvents = "auto";
+    btn.style.setProperty("--hold-progress", "0%");
+    clearInterval(modelHoldProgressInterval);
+    modelHoldProgressInterval = null;
+}
+
+function cancelModelHoldDelete() {
+    clearInterval(modelHoldProgressInterval);
+    if (modelHoldProgressInterval && createModelBtn.classList.contains("holding")) {
+        resetModelHoldState();
+    }
+    const btn = createModelBtn;
+    btn.classList.remove("holding");
+    btn.style.pointerEvents = "auto";
+    btn.style.setProperty("--hold-progress", "0%");
+}
+
+async function executeModelDelete() {
+    await fetch(`/api/projects/${currentProjectId}/models/${editingModelId}`, {
+        method: 'DELETE'
+    });
+    modelModal.classList.remove('active');
+    resetModelHoldState();
+    openProject(currentProjectId); // Перезагружаем проект
+}
 
 
 // ПЕРЕКЛЮЧЕНИЕ ПОДРАЗДЕЛОВ
@@ -914,11 +1115,16 @@ function updateRankList() {
                     <div class="rank-bar-text">${m.score.toFixed(1)}%</div>
                 </div>
             </div>
-            <div class="tag"
-                style="background:${tagStyle.bg}; color:${tagStyle.text};">
-                ${extractTagName(m.label)}
-            </div>
+            <div class="tag" style="background:${tagStyle.bg}; color:${tagStyle.text};"> ${extractTagName(m.label)} </div>
+            <span class="model-ellipsis" data-id="${m.id}">&#8942;</span>
         `;
+
+        const ellipsis = item.querySelector('.model-ellipsis');
+        ellipsis.onclick = (e) => {
+            e.stopPropagation();
+            showModelCtxMenu(m.id, ellipsis);
+        };
+
         rankList.appendChild(item);
     });
 }
@@ -998,8 +1204,6 @@ function renderResults() {
 
         list.appendChild(item);
     });
-
-    updateShowMoreState();
 }
 
 // обновление всех результатов
