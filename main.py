@@ -175,5 +175,51 @@ DEFAULT_CRITERIA = [
     {'name': 'Чувствительность к контексту', 'group': 'Контекст',      'weight': 0.05},
 ]
 
+
+@app.get('/api/projects/<int:id>/top-models')
+def get_top_models(id):
+    group = request.args.get('group')
+    project = Project.query.get_or_404(id)
+
+    criteria = Criterion.query.filter_by(
+        project_id=id,
+        group=group,
+        enabled=True
+    ).all()
+
+    if not criteria:
+        return jsonify([])
+
+    models = AIModel.query.filter_by(project_id=id).all()
+    results = []
+
+    for model in models:
+        total_score = 0
+        total_weight = 0
+
+        for criterion in criteria:
+            score = Score.query.filter_by(
+                model_id=model.id,
+                criterion_id=criterion.id
+            ).first()
+
+            value = score.value if score else 0
+            total_score += value * criterion.weight
+            total_weight += criterion.weight
+
+        final_score = (
+            total_score / total_weight
+            if total_weight > 0 else 0
+        )
+
+        results.append({
+            'model_id': model.id,
+            'model_name': model.name,
+            'score': round(final_score, 3)
+        })
+
+    results.sort(key=lambda x: x['score'], reverse=True)
+    return jsonify(results[:3])
+
 if __name__ == '__main__':
     app.run(debug=True)
