@@ -7,7 +7,9 @@ class Project(db.Model):
     name = db.Column(db.String(200), nullable=False)
     description = db.Column(db.String(500), default='')
     created_at = db.Column(db.DateTime, default=db.func.now())
-    last_result = db.Column(db.DateTime, nullable=True)
+    last_result_at = db.Column(db.DateTime, nullable=True)
+    prev_result = db.Column(db.json,nullable=True)
+    prev_prev_result = db.Columb(db.json,nullable=True)
     # связи
     models = db.relationship('AIModel', backref='project', cascade='all, delete')
     criteria = db.relationship('Criterion', backref='project', cascade='all, delete')

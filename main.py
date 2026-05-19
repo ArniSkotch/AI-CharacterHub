@@ -1,3 +1,5 @@
+import json
+
 from flask import Flask, render_template, request, jsonify, session, redirect, url_for, flash
 import os
 from models import db, Project, AIModel, Criterion, Score
@@ -154,7 +156,7 @@ def get_results(id):
     p = Project.query.get_or_404(id)
     results = calculate_scores(p)
     lastresult = datetime.datetime.now()
-    p.last_result = lastresult
+    p.last_result_at = lastresult
     db.session.commit()
     return jsonify(results)
 
@@ -185,6 +187,22 @@ DEFAULT_CRITERIA = [
     {'name': 'Адаптивность к стилю',         'group': 'Контекст',      'weight': 0.05},
     {'name': 'Чувствительность к контексту', 'group': 'Контекст',      'weight': 0.05},
 ]
+
+
+@app.post('/api/projects/<int:id>/save_prev_result')
+def save_res(id,res):
+    p= Project.query.get_or_404(id)
+    newjson = []
+    for i in res:
+        s_k = i.S_k
+        m_name = i.model.name
+        newjson.append({m_name : s_k})
+    prev_res = p.prev_result
+    if prev_res:
+        p.prev_prev_result = prev_res
+    p.prev_result = json.dumps(newjson)
+    db.session.commit()
+
 
 
 @app.get('/api/projects/<int:id>/top-models')
