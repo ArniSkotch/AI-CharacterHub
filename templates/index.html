@@ -190,15 +190,29 @@
         </div>
     </div>
 
-    <!-- МОДАЛКА ДЛЯ ДОБАВЛЕНИЯ НОВОГО ПРОЕКТА -->
+    <!-- УНИВЕРСАЛЬНАЯ МОДАЛКА ПРОЕКТОВ -->
     <div id="modalOverlay" class="modal-overlay">
         <div class="modal">
+
             <div class="modal-header">
-                <div class="modal-title">Создать новый проект</div>
+                <div class="modal-title" id="projectModalTitle">
+                    Создать новый проект
+                </div>
+
                 <div class="modal-close" id="modalClose">✕</div>
             </div>
 
-            <input id="projectInput" class="modal-input" placeholder="Название проекта">
+            <!-- ТЕКСТ ДЛЯ DELETE -->
+            <div class="modal-description hidden" id="projectModalDescription">
+                Вы уверены?
+            </div>
+
+            <!-- INPUT FIELD -->
+            <input
+                id="projectInput"
+                class="modal-input"
+                placeholder="Название проекта"
+            >
 
             <div class="modal-footer">
                 <button id="createProjectBtn" class="modal-create-btn">

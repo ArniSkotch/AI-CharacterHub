@@ -1,5 +1,4 @@
 let currentProjectId = null;
-let hasInitialProject = false;
 const criteriaContainer = document.getElementById("criteriaContainer");
 // САЙДБАР
 const menuBtn = document.getElementById("menuButton");
@@ -16,14 +15,186 @@ menuBtn.onclick = () => {
 const addBtn = document.getElementById("addProjectBtn");
 const modal = document.getElementById("modalOverlay");
 const closeModal = document.getElementById("modalClose");
+
 const createProjectBtn = document.getElementById("createProjectBtn");
 const input = document.getElementById("projectInput");
 const projectList = document.getElementById("projectList");
 
-addBtn.onclick = () => {
-    modal.classList.add("active");
+// для createProjectBtn при процессе удаления проекта
+let holdStart = 0;
+let holdProgressInterval = null;
+
+const projectModalTitle = document.getElementById("projectModalTitle");
+const projectModalDescription = document.getElementById("projectModalDescription");
+
+let projectModalMode = "create"; // create | rename | delete
+let editingProjectId = null;
+
+function openCreateProjectModal() {
+    projectModalMode = "create";
+    editingProjectId = null;
+
+    projectModalTitle.textContent = "Создать новый проект";
+
+    projectModalDescription.classList.add("hidden");
+    projectModalDescription.innerHTML = "";
+
+    input.classList.remove("hidden");
     input.value = "";
+    input.placeholder = "Название проекта";
+
+    createProjectBtn.textContent = "Создать проект";
+    createProjectBtn.classList.remove("danger");
+    createProjectBtn.classList.remove("holding");
+
+    modal.classList.add("active");
+
     input.focus();
+}
+
+function openRenameProjectModal(projectId, currentName) {
+    projectModalMode = "rename";
+    editingProjectId = projectId;
+
+    projectModalTitle.textContent = "Переименовать проект";
+
+    projectModalDescription.classList.add("hidden");
+    projectModalDescription.innerHTML = "";
+
+    input.classList.remove("hidden");
+    input.value = currentName;
+
+    createProjectBtn.textContent = "Сохранить";
+    createProjectBtn.classList.remove("danger");
+    createProjectBtn.classList.remove("holding");
+
+    modal.classList.add("active");
+
+    input.focus();
+}
+
+function openDeleteProjectModal(projectId, currentName) {
+    projectModalMode = "delete";
+    editingProjectId = projectId;
+
+    projectModalTitle.textContent = "Удаление проекта";
+
+    projectModalDescription.innerHTML = `
+        <img 
+            src="/static/warning.png"
+            class="modal-warning-image"
+            alt="warning"
+        >
+
+        <div class="modal-warning-text">
+            <div class="modal-warning-main">
+                Вы уверены, что хотите удалить проект «${currentName}»?
+            </div>
+
+            <div class="modal-warning-danger">
+                Это действие необратимо!
+            </div>
+        </div>
+    `;
+
+    projectModalDescription.classList.remove("hidden");
+
+    input.classList.add("hidden");
+
+    createProjectBtn.textContent = "Удалить";
+    createProjectBtn.classList.add("danger");
+    createProjectBtn.classList.remove("holding");
+
+    modal.classList.add("active");
+}
+
+function startHoldDelete() {
+    if (projectModalMode !== "delete") return;
+    if (holdProgressInterval) return;
+
+    const btn = createProjectBtn;
+
+    let progress = 0;
+    const duration = 750;
+
+    btn.classList.add("holding");
+
+    holdStart = Date.now();
+
+    holdProgressInterval = setInterval(() => {
+        const elapsed = Date.now() - holdStart;
+        progress = Math.min(elapsed / duration, 1);
+
+        btn.style.setProperty("--hold-progress", `${progress * 100}%`);
+
+        if (progress >= 1) {
+            clearInterval(holdProgressInterval);
+            executeDelete();
+        }
+    }, 16);
+}
+
+function resetHoldState() {
+    const btn = createProjectBtn;
+
+    btn.classList.remove("holding");
+    btn.style.pointerEvents = "auto";
+    btn.style.setProperty("--hold-progress", "0%");
+
+    clearInterval(holdProgressInterval);
+    holdProgressInterval = null;
+}
+
+function cancelHoldDelete() {
+    clearInterval(holdProgressInterval);
+
+    if (holdProgressInterval && createProjectBtn.classList.contains("holding")) {
+        resetHoldState();
+    }
+
+    const btn = createProjectBtn;
+
+    btn.classList.remove("holding");
+    btn.style.pointerEvents = "auto";
+    btn.style.setProperty("--hold-progress", "0%");
+}
+
+async function executeDelete() {
+    await fetch(`/api/projects/${editingProjectId}`, {
+        method: 'DELETE'
+    });
+
+    if (currentProjectId == editingProjectId) {
+        currentProjectId = null;
+        localStorage.removeItem('lastProjectId');
+        setProjectState(false);
+        switchToProjectTab();
+    }
+
+    await loadProjects();
+    modal.classList.remove('active');
+
+    createProjectBtn.style.pointerEvents = "auto";
+    resetHoldState();
+}
+
+function switchToProjectTab() {
+    tabs.forEach(t => t.classList.remove("active"));
+
+    const projectTab = [...tabs].find(t => 
+        t.textContent.trim() === "Проект"
+    );
+
+    if (projectTab) projectTab.classList.add("active");
+
+    Object.values(pages).forEach(p => p.classList.remove("active"));
+
+    const projectPage = pages["Проект"];
+    if (projectPage) projectPage.classList.add("active");
+}
+
+addBtn.onclick = () => {
+    openCreateProjectModal();
 };
 
 closeModal.onclick = () => {
@@ -36,23 +207,121 @@ modal.onclick = (e) => {
     }
 };
 
+createProjectBtn.addEventListener("mousedown", () => {
+    if (projectModalMode === "delete") startHoldDelete();
+});
 
-createProjectBtn.onclick = async () => {
-    const name = input.value.trim();
-    if (!name) return;
+createProjectBtn.addEventListener("mouseup", () => {
+    if (projectModalMode === "delete") cancelHoldDelete();
+});
 
-    const res = await fetch('/api/projects', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name })
-    });
-    const project = await res.json();
+createProjectBtn.addEventListener("mouseleave", () => {
+    if (projectModalMode === "delete") cancelHoldDelete();
+});
 
-    modal.classList.remove('active');
-    await loadProjects();
+createProjectBtn.addEventListener("touchstart", () => {
+    if (projectModalMode !== "delete") return;
+    startHoldDelete();
+});
 
-    const el = [...projectList.children].find(d => d.dataset.id == project.id);
-    openProject(project.id, el);
+createProjectBtn.addEventListener("touchend", cancelHoldDelete);
+
+
+createProjectBtn.addEventListener("click", async () => {
+    if (projectModalMode === "delete") return; // важно
+
+    if (projectModalMode === "create") {
+        const name = input.value.trim();
+        if (!name) return;
+
+        const res = await fetch('/api/projects', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name })
+        });
+
+        const project = await res.json();
+        modal.classList.remove('active');
+        await loadProjects();
+
+        const el = [...projectList.children]
+            .find(d => d.dataset.id == project.id);
+
+        openProject(project.id, el);
+    }
+
+    if (projectModalMode === "rename") {
+        const newName = input.value.trim();
+        if (!newName) return;
+
+        await fetch(`/api/projects/${editingProjectId}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: newName })
+        });
+
+        await loadProjects();
+        modal.classList.remove('active');
+    }
+});
+
+// ===== КОНТЕКСТНОЕ МЕНЮ ПРОЕКТОВ =====
+const ctxMenu = document.createElement('div');
+ctxMenu.id = 'projectContextMenu';
+ctxMenu.innerHTML = `
+    <div class="context-menu-item" id="ctxRename">Переименовать</div>
+    <div class="context-menu-item delete" id="ctxDelete">Удалить</div>
+`;
+document.body.appendChild(ctxMenu);
+
+let ctxTargetId = null;
+
+function showCtxMenu(id, btn) {
+    ctxTargetId = id;
+    const rect = btn.getBoundingClientRect();
+    // Позиционируем меню, чтобы не вылезало за правый край viewport
+    ctxMenu.style.top = `${rect.bottom + 5}px`;
+    ctxMenu.style.left = `${Math.min(rect.left - 140, window.innerWidth - 170)}px`;
+    ctxMenu.classList.add('visible');
+}
+
+// Закрытие при клике вне меню
+document.addEventListener('click', (e) => {
+    if (!ctxMenu.contains(e.target)) {
+        ctxMenu.classList.remove('visible');
+    }
+});
+
+document.getElementById('ctxRename').onclick = () => {
+
+    const projectEl = document.querySelector(
+        `.project-item[data-id="${ctxTargetId}"]`
+    );
+
+    const currentName =
+        projectEl?.querySelector('.project-name')?.textContent
+        || projectEl?.childNodes[0]?.textContent
+        || "Проект";
+
+    openRenameProjectModal(ctxTargetId, currentName);
+
+    ctxMenu.classList.remove('visible');
+};
+
+document.getElementById('ctxDelete').onclick = () => {
+
+    const projectEl = document.querySelector(
+        `.project-item[data-id="${ctxTargetId}"]`
+    );
+
+    const currentName =
+        projectEl?.querySelector('.project-name')?.textContent
+        || projectEl?.childNodes[0]?.textContent
+        || "Проект";
+
+    openDeleteProjectModal(ctxTargetId, currentName);
+
+    ctxMenu.classList.remove('visible');
 };
 
 async function loadProjects() {
@@ -63,9 +332,27 @@ async function loadProjects() {
     projects.forEach(p => {
         const div = document.createElement('div');
         div.className = 'project-item';
-        div.textContent = p.name;
         div.dataset.id = p.id;
-        div.onclick = () => openProject(p.id, div);
+
+        const nameSpan = document.createElement('span');
+        nameSpan.className = 'project-name';
+        nameSpan.textContent = p.name;
+        div.appendChild(nameSpan);
+
+        const ellipsis = document.createElement('span');
+        ellipsis.className = 'project-ellipsis';
+        ellipsis.innerHTML = '&#8942;';
+        ellipsis.onclick = (e) => {
+            e.stopPropagation(); // не открываем проект
+            showCtxMenu(p.id, ellipsis);
+        };
+        div.appendChild(ellipsis);
+
+        div.onclick = (e) => {
+            if (e.target.closest('.project-ellipsis')) return;
+            openProject(p.id, div);
+        }
+
         projectList.appendChild(div);
     });
 }
@@ -163,7 +450,6 @@ async function openProject(id, el) {
         };
     });
 
-    console.log(models)
     criteria = apiCriteria
         .filter(c => c.enabled)
         .map(c => ({ id: c.id, title: c.name, weight: c.weight * 100 }));
