@@ -913,6 +913,8 @@ body.booting .main-wrapper {
 .criteria-btn-wrapper {
     display: flex;
     justify-content: flex-end;
+    align-items: center;
+    gap: 12px; /* вот этого тебе не хватало */
     margin-top: 8px;
 }
 
@@ -929,6 +931,58 @@ body.booting .main-wrapper {
     font-family: 'Arial', sans-serif;
     transition: opacity 0.2s, transform 0.15s;
     box-shadow: 0 4px 14px rgba(109,40,217,0.3);
+}
+
+/* info-tooltip о нормализации */
+.tooltip-icon {
+    padding: 10px;
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    background: #e5e7eb;
+    color: #374151;
+    font-size: 18px;
+    font-weight: 400;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: default;
+    position: relative;
+    user-select: none;
+}
+
+.tooltip-text {
+    position: absolute;
+    bottom: 130%;
+    left: -300%;
+    transform: translateX(-50%);
+
+    background: #111827;
+    color: #fff;
+
+    padding: 12px 20px;      
+    border-radius: 10px;
+
+    font-size: 13px;
+    white-space: normal;   
+
+    max-width: 300px;
+    min-width: 250px;     
+    min-height: 40px;
+    display: flex;
+    align-items: stretch;
+
+    opacity: 0;
+    visibility: hidden;
+    transition: 0.15s ease;
+
+    pointer-events: none;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.25);
+}   
+
+.tooltip-icon:hover .tooltip-text {
+    opacity: 1;
+    visibility: visible;
 }
 
 /* ===== SCORES TABLE ===== */
@@ -1303,14 +1357,14 @@ body.booting .main-wrapper {
     margin-top: 24px;
 }
 
-    .sensitivity-recommendations .results-recommendations-title {
-        font-size: 18px;
-        font-weight: 600;
-        color: #1f2937;
-        margin-bottom: 16px;
-        padding-bottom: 12px;
-        border-bottom: 1px solid #f3f4f6;
-    }
+.sensitivity-recommendations .results-recommendations-title {
+    font-size: 18px;
+    font-weight: 600;
+    color: #1f2937;
+    margin-bottom: 16px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid #f3f4f6;
+}
 
 #recContent {
     line-height: 1.6;
@@ -1318,33 +1372,33 @@ body.booting .main-wrapper {
     font-size: 15px;
 }
 
-    #recContent p {
-        margin: 12px 0;
-    }
+#recContent p {
+    margin: 12px 0;
+}
 
-    #recContent strong {
-        color: #1f2937;
-    }
+#recContent strong {
+    color: #1f2937;
+}
 
-    #recContent ul {
-        padding-left: 20px;
-        margin: 12px 0;
-    }
+#recContent ul {
+    padding-left: 20px;
+    margin: 12px 0;
+}
 
-    #recContent li {
-        margin: 8px 0;
-        color: #4b5563;
-    }
+#recContent li {
+    margin: 8px 0;
+    color: #4b5563;
+}
 
 .rec-changes {
     padding-left: 20px;
     margin: 12px 0;
 }
 
-    .rec-changes li {
-        margin: 10px 0;
-        padding: 6px 0;
-    }
+.rec-changes li {
+    margin: 10px 0;
+    padding: 6px 0;
+}
 
 .rank-change {
     font-weight: 700;
@@ -1355,20 +1409,20 @@ body.booting .main-wrapper {
     margin-left: 8px;
 }
 
-    .rank-change.up {
-        color: #10;
-        background-color: #ecfdf5;
-    }
+.rank-change.up {
+    color: #10A888;
+    background-color: #ecfdf5;
+}
 
-    .rank-change.down {
-        color: #ef4444;
-        background-color: #fee2e2;
-    }
+.rank-change.down {
+    color: #ef4444;
+    background-color: #fee2e2;
+}
 
-    .rank-change.same {
-        color: #6b7280;
-        background-color: #f3f4f6;
-    }
+.rank-change.same {
+    color: #6b7280;
+    background-color: #f3f4f6;
+}
 
 /* Адаптивность */
 @media (max-width: 768px) {

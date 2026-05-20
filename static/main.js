@@ -1,5 +1,4 @@
 let currentProjectId = null;
-
 const criteriaContainer = document.getElementById("criteriaContainer");
 // САЙДБАР
 const menuBtn = document.getElementById("menuButton");
@@ -163,6 +162,7 @@ function cancelHoldDelete() {
     btn.style.pointerEvents = "auto";
     btn.style.setProperty("--hold-progress", "0%");
 }
+
 // Debounce для частых событий (слайдеры)
 function debounce(func, wait) {
     let timeout;
@@ -462,10 +462,10 @@ function setProjectState(hasProject) {
         tab.classList.toggle("disabled", !hasProject);
     });
 }
+
 // АНАЛИЗ ЧУВСТВИТЕЛЬНОСТИ
 let originalRanking = [];
 
-// АНАЛИЗ ЧУВСТВИТЕЛЬНОСТИ
 async function loadSensitivity() {
     if (!currentProjectId) return;
 
@@ -1034,13 +1034,7 @@ function attachCriteriaListeners() {
         updateResetButtonState(item, slider, resetBtn, criterionId);
 
         slider.addEventListener("input", () => {
-            const sliders = Array.from(document.querySelectorAll(".criteria-slider"));
-
-            const currentTotal = sliders.reduce((sum, s) => sum + Number(s.value), 0);
-
-            const maxAllowed = 100 - (currentTotal - Number(slider.value));
-
-            let newValue = Math.max(0, Math.min(Number(slider.value), maxAllowed));
+            let newValue = Math.max(0, Math.min(Number(slider.value)));
 
             slider.value = newValue;
             value.textContent = newValue + "%";
@@ -1130,12 +1124,20 @@ document.getElementById("resetWeightsBtn").addEventListener("click", () => {
 
 // СОХРАНЕНИЕ ВСЕХ НОВЫЙ ВЕСОВ
 document.getElementById("saveWeightsBtn").addEventListener("click", async () => {
-    const payload = Array.from(document.querySelectorAll(".criteria-item")).map(item => {
+    const sliders = Array.from(document.querySelectorAll(".criteria-slider"));
+    const rawValues = sliders.map(s => Number(s.value));
+    const normalizedValues = normalizeWeightsValues(rawValues);
+
+    const payload = Array.from(document.querySelectorAll(".criteria-item")).map((item, i) => {
 
         const slider = item.querySelector(".criteria-slider");
+        const valueEl = item.querySelector(".criteria-value");
         const criterionId = item.dataset.id;
 
-        const value = Number(slider.value);
+        const value = normalizedValues[i];
+
+        animateSlider(slider, Number(slider.value), value, 250);
+        valueEl.textContent = value + "%";
 
         return {
             id: criterionId,
@@ -1153,6 +1155,8 @@ document.getElementById("saveWeightsBtn").addEventListener("click", async () => 
     payload.forEach(p => {
         criteriaInitial[p.id] = Math.round(p.weight * 100);
     });
+
+    updateCriteriaSum();
 
     document.querySelectorAll(".criteria-item").forEach(item => {
         const slider = item.querySelector(".criteria-slider");
@@ -1196,10 +1200,41 @@ document.querySelectorAll(".criteria-item").forEach(item => {
     });
 });
 
+// НОРМАЛИЗАЦИЯ ВЕСОВ ПРИ СОХРАНЕНИИ НОВЫХ ЗНАЧЕНИЙ
+let isNormalizing = false;
+
+function normalizeWeightsValues(values) {
+    const sum = values.reduce((a, b) => a + b, 0);
+
+    if (sum === 0) {
+        const equal = 100 / values.length;
+        return values.map(() => Math.round(equal));
+    }
+
+    const normalized = values.map(v => (v / sum) * 100);
+
+    const floored = normalized.map(v => Math.floor(v));
+
+    let diff = 100 - floored.reduce((a, b) => a + b, 0);
+
+    // распределяем остаток по наибольшим дробным частям
+    // предохранитель от суммы, не равно 100%
+    const fractions = normalized
+        .map((v, i) => ({ i, frac: v - floored[i] }))
+        .sort((a, b) => b.frac - a.frac);
+
+    for (let i = 0; i < diff; i++) {
+        floored[fractions[i % fractions.length].i]++;
+    }
+
+    return floored;
+}
+
 // ДИНАМИЧЕСКОЕ ИЗМЕНЕНИИ ИНТЕГРАЛЬНОЙ ОЦЕНКИ С ИЗМЕНЕНИЕМ ВЕСОВ КРИТЕРИВ
 let criteriaTimeout = null;
 
 function saveCriteriaDebounced() {
+    // if (isNormalizing) return;
     clearTimeout(criteriaTimeout);
 
     criteriaTimeout = setTimeout(async () => {
