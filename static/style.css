@@ -1253,3 +1253,126 @@ body.booting .main-wrapper {
     pointer-events: none;
     transition: opacity 0.2s ease;
 }
+.analysis-description {
+    font-size: 14px;
+    color: var(--text-secondary);
+    margin-bottom: 20px;
+}
+
+.analysis-top-row {
+    display: flex;
+    gap: 16px;
+    align-items: flex-start;
+}
+
+.analysis-sliders-block,
+.analysis-results-block {
+    background: var(--card-bg);
+    border-radius: var(--radius-lg);
+    padding: 18px;
+    box-shadow: var(--shadow-card);
+    border: 1px solid var(--border);
+}
+
+.analysis-sliders-block {
+    flex: 0 0 48%;
+}
+
+.analysis-results-block {
+    flex: 1;
+}
+
+.sensitivity-sliders {
+    margin-top: 14px;
+}
+
+.sensitivity-results {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 14px;
+}
+/* ====================== ПОДРОБНЫЕ РЕКОМЕНДАЦИИ ====================== */
+
+.sensitivity-recommendations {
+    background: white;
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.06);
+    border: 1px solid #e5e7eb;
+    margin-top: 24px;
+}
+
+    .sensitivity-recommendations .results-recommendations-title {
+        font-size: 18px;
+        font-weight: 600;
+        color: #1f2937;
+        margin-bottom: 16px;
+        padding-bottom: 12px;
+        border-bottom: 1px solid #f3f4f6;
+    }
+
+#recContent {
+    line-height: 1.6;
+    color: #374151;
+    font-size: 15px;
+}
+
+    #recContent p {
+        margin: 12px 0;
+    }
+
+    #recContent strong {
+        color: #1f2937;
+    }
+
+    #recContent ul {
+        padding-left: 20px;
+        margin: 12px 0;
+    }
+
+    #recContent li {
+        margin: 8px 0;
+        color: #4b5563;
+    }
+
+.rec-changes {
+    padding-left: 20px;
+    margin: 12px 0;
+}
+
+    .rec-changes li {
+        margin: 10px 0;
+        padding: 6px 0;
+    }
+
+.rank-change {
+    font-weight: 700;
+    padding: 3px 10px;
+    border-radius: 9999px;
+    font-size: 14px;
+    display: inline-block;
+    margin-left: 8px;
+}
+
+    .rank-change.up {
+        color: #10;
+        background-color: #ecfdf5;
+    }
+
+    .rank-change.down {
+        color: #ef4444;
+        background-color: #fee2e2;
+    }
+
+    .rank-change.same {
+        color: #6b7280;
+        background-color: #f3f4f6;
+    }
+
+/* Адаптивность */
+@media (max-width: 768px) {
+    .sensitivity-recommendations {
+        padding: 16px;
+    }
+}

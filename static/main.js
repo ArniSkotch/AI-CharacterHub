@@ -1,4 +1,5 @@
 let currentProjectId = null;
+
 const criteriaContainer = document.getElementById("criteriaContainer");
 // САЙДБАР
 const menuBtn = document.getElementById("menuButton");
@@ -161,6 +162,18 @@ function cancelHoldDelete() {
     btn.classList.remove("holding");
     btn.style.pointerEvents = "auto";
     btn.style.setProperty("--hold-progress", "0%");
+}
+// Debounce для частых событий (слайдеры)
+function debounce(func, wait) {
+    let timeout;
+    return function executedFunction(...args) {
+        const later = () => {
+            clearTimeout(timeout);
+            func(...args);
+        };
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+    };
 }
 
 async function executeDelete() {
@@ -448,6 +461,179 @@ function setProjectState(hasProject) {
 
         tab.classList.toggle("disabled", !hasProject);
     });
+}
+// АНАЛИЗ ЧУВСТВИТЕЛЬНОСТИ
+let originalRanking = [];
+
+// АНАЛИЗ ЧУВСТВИТЕЛЬНОСТИ
+async function loadSensitivity() {
+    if (!currentProjectId) return;
+
+    try {
+        const res = await fetch(`/api/projects/${currentProjectId}/criteria`);
+        const criteriaData = await res.json();
+        const active = criteriaData.filter(c => c.enabled);
+
+        const container = document.getElementById('sensitivitySliders');
+        if (!container) return;
+
+        container.innerHTML = '';
+
+        active.forEach(c => {
+            const item = document.createElement('div');
+            item.className = 'criteria-item';
+            item.innerHTML = `
+                <div class="criteria-name">${c.name}</div>
+                <div class="criteria-control">
+                    <input type="range" min="0" max="100"
+                        value="${Math.round(c.weight * 100)}"
+                        class="criteria-slider sensitivity-slider"
+                        data-id="${c.id}">
+                    <div class="criteria-value" id="sv_${c.id}">
+                        ${Math.round(c.weight * 100)}%
+                    </div>
+                </div>
+            `;
+            container.appendChild(item);
+        });
+
+        updateSensitivityTotal();
+
+        // Сохраняем исходный рейтинг
+        await saveOriginalRanking();
+
+        // === ВАЖНО: Навешиваем обработчик на каждый слайдер ===
+        document.querySelectorAll('.sensitivity-slider').forEach(slider => {
+            slider.addEventListener('input', debounce(fetchSensitivity, 150));
+        });
+
+        // Первый расчёт
+        await fetchSensitivity();
+
+    } catch (e) {
+        console.error("Ошибка в loadSensitivity:", e);
+    }
+}
+
+async function saveOriginalRanking() {
+    const res = await fetch(`/api/projects/${currentProjectId}/results`);
+    const data = await res.json();
+
+    originalRanking = data.map((item, index) => ({
+        model_id: item.model?.id || item.model_id,
+        model_name: item.model_name || item.model?.name,
+        rank: index + 1,
+        score: item.K_k
+    }));
+}
+
+function updateSensitivityTotal() {
+    let total = 0;
+    document.querySelectorAll('.sensitivity-slider')
+        .forEach(s => total += Number(s.value));
+    document.getElementById('sensitivityTotal').textContent = total + '%';
+}
+
+async function fetchSensitivity() {
+    try {
+        const params = new URLSearchParams();
+        document.querySelectorAll('.sensitivity-slider').forEach(s => {
+            params.set(`w_${s.dataset.id}`, s.value / 100);
+        });
+
+        const res = await fetch(`/api/projects/${currentProjectId}/sensitivity?${params}`);
+        if (!res.ok) throw new Error('Ошибка сервера');
+
+        const newResults = await res.json();
+
+        // === Рендер списка моделей ===
+        const container = document.getElementById('sensitivityResults');
+        container.innerHTML = '';
+
+        newResults.forEach((r, newIndex) => {
+            const modelId = r.model?.id || r.model_id;
+            const original = originalRanking.find(o => o.model_id == modelId);
+            const oldRank = original ? original.rank : 999;
+            const change = (newIndex + 1) - oldRank;
+
+            let arrow = change < 0 ?
+                `<span class="rank-change up">↑ ${Math.abs(change)}</span>` :
+                change > 0 ?
+                    `<span class="rank-change down">↓ ${change}</span>` :
+                    `<span class="rank-change same">→</span>`;
+
+            const percent = Math.round(r.K_k * 100);
+            const tagClass = percent >= 75 ? 'good' : percent >= 60 ? 'ok' : 'bad';
+
+            const item = document.createElement('div');
+            item.className = 'rank-item';
+            item.innerHTML = `
+                <div class="rank-number">${newIndex + 1}</div>
+                <div class="rank-content">
+                    <div class="rank-name">${r.model_name || r.model?.name}</div>
+                    <div class="rank-bar">
+                        <div class="rank-bar-fill" style="width:${percent}%"></div>
+                    </div>
+                </div>
+                <div class="tag ${tagClass}">${percent}%</div>
+                ${arrow}
+            `;
+            container.appendChild(item);
+        });
+
+        // === ГЕНЕРАЦИЯ ПОДРОБНЫХ РЕКОМЕНДАЦИЙ ===
+        generateDetailedRecommendations(newResults);
+
+    } catch (e) {
+        console.error("Ошибка при пересчёте:", e);
+    }
+}
+function generateDetailedRecommendations(newResults) {
+    const container = document.getElementById('recContent');
+    if (!container) return;
+
+    const topModel = newResults[0];
+    const topModelName = topModel.model_name || topModel.model?.name;
+
+    // Находим изменения позиций
+    let biggestGainers = [];
+    let biggestLosers = [];
+
+    newResults.forEach((r, newIndex) => {
+        const modelId = r.model?.id || r.model_id;
+        const original = originalRanking.find(o => o.model_id == modelId);
+        if (!original) return;
+
+        const change = (newIndex + 1) - original.rank;
+
+        if (change < -1) biggestGainers.push({ name: r.model_name || r.model?.name, change: Math.abs(change) });
+        if (change > 1) biggestLosers.push({ name: r.model_name || r.model?.name, change });
+    });
+
+    let html = `<p><strong>Текущий лидер:</strong> ${topModelName} — ${Math.round(topModel.K_k * 100)}%</p>`;
+
+    if (biggestGainers.length > 0) {
+        html += `<p><strong>Сильно выросли:</strong> ${biggestGainers.map(m => m.name).join(', ')}</p>`;
+    }
+    if (biggestLosers.length > 0) {
+        html += `<p><strong>Сильно упали:</strong> ${biggestLosers.map(m => m.name).join(', ')}</p>`;
+    }
+
+    // Рекомендации по сценариям
+    html += `
+        <div class="rec-tips">
+            <strong>Рекомендации:</strong><br>
+            • Если вам важна <strong>максимальная точность</strong> — оставьте текущие веса.<br>
+            • Модель <strong>${topModelName}</strong> сейчас выглядит наиболее сбалансированной.<br>
+    `;
+
+    if (biggestGainers.length > 0) {
+        html += `• При текущих весах выгодно выделяются: <strong>${biggestGainers[0].name}</strong><br>`;
+    }
+
+    html += `</div>`;
+
+    container.innerHTML = html;
 }
 
 // WEBSITE ENTRY POINT
@@ -784,6 +970,9 @@ tabs.forEach(tab => {
 
             if (name === "Результаты" && currentProjectId) {
                 await renderAllCharts();
+            }
+            if (name === "Анализ" && currentProjectId) {
+                await loadSensitivity();
             }
         }
     });

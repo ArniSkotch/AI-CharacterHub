@@ -193,9 +193,42 @@
                 </div>
 
                 <!-- ПОДРАЗДЕЛ АНАЛИЗА -->
-                <div class="page" id="page-analysis">
-                    <h2>Анализ</h2>
-                </div>
+<div class="page" id="page-analysis">
+    <div class="section-title">Анализ чувствительности</div>
+    <div class="analysis-description">
+        Измените веса критериев и посмотрите как меняется рейтинг моделей.
+    </div>
+    <div class="analysis-top-row">
+        <div class="analysis-sliders-block">
+            <div class="results-block-header">Веса критериев</div>
+            <div id="sensitivitySliders" class="sensitivity-sliders"></div>
+            <div class="criteria-summary-box" style="margin-top:12px;">
+                <div class="criteria-summary-left">Сумма весов</div>
+                <div class="criteria-summary-right" id="sensitivityTotal">0%</div>
+            </div>
+        </div>
+        <div class="analysis-results-block">
+            <div class="results-block-header">Новый рейтинг</div>
+            <div id="sensitivityResults" class="sensitivity-results"></div>
+        </div>
+    </div>
+        </div>
+
+    <div class="results-recommendations" style="margin-top:16px;">
+        <div class="results-recommendations-title">Вывод</div>
+        <div class="results-recommendations-text" id="sensitivityConclusion">
+            Передвиньте слайдер чтобы увидеть как меняется результат
+        </div>
+    </div>
+    <div id="sensitivityRecommendations" class="sensitivity-recommendations" style="margin-top:24px;">
+        <div class="results-recommendations-title">Подробные рекомендации</div>
+        <div id="recContent" class="results-recommendations-text">
+            Перемещайте ползунки весов критериев чтобы увидеть как меняется результат
+        </div>
+    </div>
+
+</div>
+</div>
             </div>
         </div>
     </div>
