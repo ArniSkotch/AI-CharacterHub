@@ -24,6 +24,10 @@ const projectList = document.getElementById("projectList");
 let holdStart = 0;
 let holdProgressInterval = null;
 
+// для текущих весов критериев
+const criteriaInitial = {};
+let isAnimatingReset = false;
+
 const projectModalTitle = document.getElementById("projectModalTitle");
 const projectModalDescription = document.getElementById("projectModalDescription");
 
@@ -807,6 +811,7 @@ function renderCriteria(criteriaFromApi) {
                 <div class="criteria-item" data-id="${c.id}">
                     <div class="criteria-name">${c.name}</div>
                     <div class="criteria-control">
+                        <button class="resetWeightBtn inactive">⭯</button>
                         <input type="range" min="0" max="100"
                             value="${Math.round(c.weight * 100)}"
                             class="criteria-slider">
@@ -814,6 +819,7 @@ function renderCriteria(criteriaFromApi) {
                     </div>
                 </div>
             `;
+            criteriaInitial[c.id] = Math.round(c.weight * 100);
         });
 
         html += `</div>`;
@@ -830,6 +836,10 @@ function attachCriteriaListeners() {
     document.querySelectorAll(".criteria-item").forEach(item => {
         const slider = item.querySelector(".criteria-slider");
         const value = item.querySelector(".criteria-value");
+        const resetBtn = item.querySelector(".resetWeightBtn");
+        const criterionId = item.dataset.id;
+
+        updateResetButtonState(item, slider, resetBtn, criterionId);
 
         slider.addEventListener("input", () => {
             const sliders = Array.from(document.querySelectorAll(".criteria-slider"));
@@ -844,9 +854,123 @@ function attachCriteriaListeners() {
             value.textContent = newValue + "%";
 
             updateCriteriaSum();
+            updateResetButtonState(item, slider, resetBtn, criterionId);
+        });
+
+        resetBtn.addEventListener("click", () => {
+
+            if (resetBtn.classList.contains("inactive")) return;
+
+            resetBtn.classList.add("hiding");
+
+            resetBtn.addEventListener("animationend", () => {
+
+                const target = criteriaInitial[criterionId];
+                const current = Number(slider.value);
+
+                animateSlider(slider, current, target, 150);
+
+                resetBtn.classList.remove("hiding");
+
+            }, { once: true });
         });
     });
 }
+
+// ОБНОВЛЕНИЕ СОСТОЯНИЯ КНОПКИ РЕСЕТА
+function updateResetButtonState(item, slider, resetBtn, criterionId) {
+    const initial = criteriaInitial[criterionId];
+    const current = Number(slider.value);
+
+    const isDirty = current !== initial;
+
+    if (isAnimatingReset) {
+        resetBtn.classList.add("inactive");
+        return;
+    }
+
+    resetBtn.classList.toggle("inactive", !isDirty);
+}
+
+function animateSlider(slider, from, to, duration = 300) {
+    const start = performance.now();
+    isAnimatingReset = true;
+
+    function frame(time) {
+        const progress = Math.min((time - start) / duration, 1);
+        const value = from + (to - from) * progress;
+
+        slider.value = value;
+        slider.dispatchEvent(new Event("input"));
+
+        if (progress < 1) {
+            requestAnimationFrame(frame);
+        } else {
+            isAnimatingReset = false;
+        }
+    }
+
+    requestAnimationFrame(frame);
+}
+
+// ОТМЕНА ВСЕХ ИЗМЕНЕНИЙ ВЕСОВ
+document.getElementById("resetWeightsBtn").addEventListener("click", () => {
+
+    document.querySelectorAll(".criteria-item").forEach(item => {
+
+        const slider = item.querySelector(".criteria-slider");
+        const value = item.querySelector(".criteria-value");
+        const resetBtn = item.querySelector(".resetWeightBtn");
+        const criterionId = item.dataset.id;
+
+        const initial = criteriaInitial[criterionId];
+
+        animateSlider(slider, Number(slider.value), initial, 300);
+        slider.value = initial;
+        value.textContent = initial + "%";
+
+        updateResetButtonState(item, slider, resetBtn, criterionId);
+    });
+
+    updateCriteriaSum();
+    saveCriteriaDebounced();
+});
+
+// СОХРАНЕНИЕ ВСЕХ НОВЫЙ ВЕСОВ
+document.getElementById("saveWeightsBtn").addEventListener("click", async () => {
+    const payload = Array.from(document.querySelectorAll(".criteria-item")).map(item => {
+
+        const slider = item.querySelector(".criteria-slider");
+        const criterionId = item.dataset.id;
+
+        const value = Number(slider.value);
+
+        return {
+            id: criterionId,
+            weight: value / 100,
+            enabled: true
+        };
+    });
+
+    await fetch(`/api/projects/${currentProjectId}/criteria`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+    });
+
+    payload.forEach(p => {
+        criteriaInitial[p.id] = Math.round(p.weight * 100);
+    });
+
+    document.querySelectorAll(".criteria-item").forEach(item => {
+        const slider = item.querySelector(".criteria-slider");
+        const resetBtn = item.querySelector(".resetWeightBtn");
+        const criterionId = item.dataset.id;
+
+        updateResetButtonState(item, slider, resetBtn, criterionId);
+    });
+
+});
 
 // ИЗМЕНЕНИЕ ВЕСОВ КРИТЕРИЕВ
 document.querySelectorAll(".criteria-item").forEach(item => {
