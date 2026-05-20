@@ -503,7 +503,7 @@ async function openProject(id, el) {
         scoreMap[r.model.id] = r.K_k; 
     });
 
-    updateProjectStats(apiModels, apiCriteria);
+    updateProjectStats(apiModels, apiCriteria, apiResults);
     renderCriteria(apiCriteria);
 
 
@@ -554,7 +554,7 @@ async function openProject(id, el) {
 }
 
 // ОБНОВЛЕНИЕ БАЗОВЫХ СТАТИСТИК В РАЗДЕЛЕ ПРОЕКТА
-function updateProjectStats(models, criteria, results = null) {
+function updateProjectStats(models, criteria, results = []) {
     const modelsEl = document.getElementById("statModels");
     const criteriaEl = document.getElementById("statCriteria");
     const leaderEl = document.getElementById("statLeader");
@@ -562,14 +562,17 @@ function updateProjectStats(models, criteria, results = null) {
     if (modelsEl) modelsEl.textContent = models.length;
     if (criteriaEl) criteriaEl.textContent = criteria.length;
 
-    if (leaderEl && models.length) {
-        let leader = models[0];
+    if (leaderEl) {
 
-        if (results && results.length) {
-            leader = results.sort((a, b) => b.score - a.score)[0];
+        if (!results || results.length === 0 || models.length === 0) {
+            leaderEl.textContent = "-";
+            return;
         }
 
-        leaderEl.textContent = leader.name;
+        const sorted = [...results].sort((a, b) => b.K_k - a.K_k);
+        const leader = sorted[0];
+
+        leaderEl.textContent = leader?.model?.name ?? "-";
     }
 }
 
@@ -970,6 +973,7 @@ document.getElementById("saveWeightsBtn").addEventListener("click", async () => 
         updateResetButtonState(item, slider, resetBtn, criterionId);
     });
 
+    await refreshResults();
 });
 
 // ИЗМЕНЕНИЕ ВЕСОВ КРИТЕРИЕВ
@@ -1027,7 +1031,7 @@ function saveCriteriaDebounced() {
             body: JSON.stringify(payload)
         });
 
-        await refreshResults(); // 👈 ВОТ ОНО
+        await refreshResults();
     }, 300);
 }
 
