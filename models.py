@@ -8,8 +8,8 @@ class Project(db.Model):
     description = db.Column(db.String(500), default='')
     created_at = db.Column(db.DateTime, default=db.func.now())
     last_result_at = db.Column(db.DateTime, nullable=True)
-    prev_result = db.Column(db.json,nullable=True)
-    prev_prev_result = db.Column(db.json,nullable=True)
+    prev_result = db.Column(db.JSON,nullable=True)
+    prev_prev_result = db.Column(db.JSON,nullable=True)
     # связи
     models = db.relationship('AIModel', backref='project', cascade='all, delete')
     criteria = db.relationship('Criterion', backref='project', cascade='all, delete')
