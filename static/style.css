@@ -1309,6 +1309,117 @@ body.booting .main-wrapper {
     pointer-events: none;
     transition: opacity 0.2s ease;
 }
+
+/* Обновляем существующий .project-item для выравнивания */
+.project-item {
+    position: relative;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-right: 8px;
+}
+.project-item .project-name {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    pointer-events: none; /* клик проходит на родителя */
+}
+
+/* Вертикальное многоточие */
+.project-ellipsis {
+    opacity: 0;
+    transition: opacity 0.2s;
+    cursor: pointer;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 18px;
+    line-height: 1;
+    color: var(--text-on-dark);
+    user-select: none;
+    margin-left: 4px;
+}
+.project-item:hover .project-ellipsis {
+    opacity: 1;
+}
+.project-ellipsis:hover {
+    background: rgba(255,255,255,0.25);
+}
+
+/* Контекстное меню (fixed обходит overflow и stacking context родителей) */
+#projectContextMenu {
+    position: fixed;
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-pop);
+    padding: 6px 0;
+    z-index: 5000;
+    display: none;
+    min-width: 160px;
+    animation: fadeUp 0.15s ease-out;
+}
+#projectContextMenu.visible {
+    display: block;
+}
+.context-menu-item {
+    padding: 8px 14px;
+    cursor: pointer;
+    font-size: 13px;
+    color: var(--text-primary);
+    transition: background 0.15s;
+}
+.context-menu-item:hover {
+    background: var(--purple-pale);
+}
+.context-menu-item.delete {
+    color: #dc2626;
+}
+.context-menu-item.delete:hover {
+    background: #fee2e2;
+}
+
+/* Стили для кнопки "..." у моделей */
+.model-ellipsis {
+    opacity: 0;
+    transition: opacity 0.2s;
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 18px;
+    line-height: 1;
+    color: var(--text-secondary);
+    user-select: none;
+    margin-left: auto; /* Прижимает вправо во flex-контейнере */
+    margin-right: 10px;
+}
+
+.rank-item:hover .model-ellipsis {
+    opacity: 1;
+}
+
+.model-ellipsis:hover {
+    background: var(--purple-pale);
+    color: var(--purple-mid);
+}
+
+/* Контекстное меню для моделей */
+#modelContextMenu {
+    position: fixed;
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-pop);
+    padding: 6px 0;
+    z-index: 5000;
+    display: none;
+    min-width: 160px;
+    animation: fadeUp 0.15s ease-out;
+}
+
+#modelContextMenu.visible {
+    display: block;
+}
 .analysis-description {
     font-size: 14px;
     color: var(--text-secondary);
@@ -1491,4 +1602,55 @@ body.booting .main-wrapper {
 .project-input-wrapper,
 .input-wrapper {
     position: relative;
+}
+
+/* стиль заголовка секции */
+.section-title {
+    font-family: 'Space Mono', monospace;
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+/* стиль описания под заголовком */
+.analysis-description {
+    font-family: 'Arial', sans-serif;
+    font-size: 14px;
+    color: var(--text-secondary);
+    margin-bottom: 24px;
+    line-height: 1.5;
+}
+
+/* дизайн кнопки сброса */
+.reset-sensitivity-btn {
+    background: linear-gradient(135deg, var(--purple-mid), var(--purple-light));
+    color: white;
+
+    border: none;
+    border-radius: var(--radius-pill);
+    padding: 10px 20px;
+
+    font-family: 'Arial', sans-serif;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+
+    box-shadow: 0 4px 14px rgba(109, 40, 217, 0.3);
+    transition: transform 0.15s, opacity 0.2s;
+
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.reset-sensitivity-btn:hover {
+    opacity: 0.9;
+    transform: translateY(-1px);
+}
+
+.reset-sensitivity-btn:active {
+    transform: translateY(0);
 }
