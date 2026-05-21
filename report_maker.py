@@ -3,6 +3,7 @@ from datetime import datetime
 from jinja2 import Environment, FileSystemLoader
 from weasyprint import HTML
 from models import db, Project, AIModel, Criterion, Score
+import tempfile
 
 from models import db, Project, AIModel, Criterion, Score
 template_dir = os.path.dirname(__file__)
@@ -128,8 +129,3 @@ def interpret_score(ratio):
     if ratio >= 0.5: return "удовлетворительно"
     if ratio >= 0.3: return "плохо"
     return "Ужасно"
-
-# ---------- 4. ЗАПУСК (пример) ----------
-if __name__ == "__main__":
-    # Укажите ID проекта и путь, куда сохранить PDF
-    generate_report(project_id=123, output_pdf_path="report.pdf")

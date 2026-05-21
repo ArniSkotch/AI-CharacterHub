@@ -1,10 +1,12 @@
 import json
 
-from flask import Flask, render_template, request, jsonify, session, redirect, url_for, flash
+from flask import Flask, render_template, request, jsonify, session, redirect, url_for, flash, send_file, abort, after_this_request
 import os
 from models import db, Project, AIModel, Criterion, Score
 from calculator import calculate_scores
+from report_maker import generate_report
 import datetime
+import tempfile
 
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///eval.db'
@@ -204,6 +206,35 @@ def save_res(id,res):
         p.prev_prev_result = prev_res
     p.prev_result = json.dumps(newjson)
     db.session.commit()
+
+
+@app.get('/api/projects/<int:id>/report')
+def report_generation(project_id):
+    fd, temp_path = tempfile.mkstemp(suffix='.pdf')
+    os.close(fd)
+
+    try:
+        generate_report(project_id, temp_path)
+
+        @after_this_request
+        def cleanup(response):
+            try:
+                os.remove(temp_path)
+            except:
+                pass
+            return response
+
+        return send_file(
+            temp_path,
+            as_attachment=True,
+            download_name=f'project_{project_id}_report.pdf',
+            mimetype='application/pdf'
+        )
+    except Exception as e:
+        if os.path.exists(temp_path):
+            os.remove(temp_path)
+        abort(500, f'Ошибка генерации отчёта: {e}')
+
 
 
 
