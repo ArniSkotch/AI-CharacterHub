@@ -96,6 +96,7 @@ html, body {
 body.booting .main-wrapper {
     opacity: 0;
     pointer-events: none;
+    overflow: hidden;
 }
 
 /* ===== TOPBAR ===== */
