@@ -628,6 +628,7 @@ body.booting .main-wrapper {
     width: 100%;
     padding: 10px 12px;
     border: 1.5px solid var(--border);
+    box-sizing: border-box;
     border-radius: var(--radius-md);
     margin-bottom: 16px;
     font-size: 14px;
@@ -1429,4 +1430,64 @@ body.booting .main-wrapper {
     .sensitivity-recommendations {
         padding: 16px;
     }
+}
+
+/* ПРЕДУПРЕЖДЕНИЯ О ДУБЛИКАТЕ ИМЕНИ В МОДАЛКАХ ПРОЕКТОВ И МОДЕЛЕЙ */
+.input-error {
+    color: #dc2626;
+    border-color: #dc2626 !important;
+    border-width: 2.5px;
+}
+
+.input-error::placeholder {
+    color: #fca5a5;
+}
+
+.modal-create-btn.disabled {
+    opacity: 0.5;
+    pointer-events: none;
+}
+
+.input-wrapper {
+    position: relative;
+    margin-bottom: 16px;
+}
+
+.error-tooltip {
+    position: absolute;
+    bottom: 100%;
+    left: 0;
+    transform: translateY(-6px);
+
+    background: #111827;
+    color: #fff;
+
+    padding: 10px 14px;
+    border-radius: 10px;
+
+    font-size: 13px;
+    white-space: nowrap;
+
+    opacity: 0;
+    visibility: hidden;
+
+    transition: 0.15s ease;
+
+    pointer-events: none;
+    z-index: 9999;
+}
+
+.project-input-wrapper.input-error .error-tooltip,
+.input-wrapper.input-error .error-tooltip {
+    opacity: 1;
+    visibility: visible;
+}
+
+.input-wrapper.input-error .modal-input {
+    border: 2px solid #dc2626 !important;
+}
+
+.project-input-wrapper,
+.input-wrapper {
+    position: relative;
 }

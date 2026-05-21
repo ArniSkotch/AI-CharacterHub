@@ -53,7 +53,45 @@ function openCreateProjectModal() {
 
     modal.classList.add("active");
 
+    input.addEventListener("input", validateProjectInput);
+    setTimeout(validateProjectInput, 0);
     input.focus();
+}
+
+// ПРОВЕРКА НАЗВАНИЯ ДОБАВЛЯЕМОГО ПРОЕКТА НА ДУБЛИКАТ
+function isDuplicateProjectName(name, excludeId = null) {
+    return Array.from(projectList.querySelectorAll(".project-item"))
+        .some(item => {
+            const itemId = item.dataset.id;
+            const itemName = item.querySelector(".project-name")?.textContent?.trim();
+
+            if (!itemName) return false;
+            if (excludeId && itemId == excludeId) return false;
+
+            return itemName.toLowerCase() === name.trim().toLowerCase();
+        });
+}
+
+// ВАЛИДАЦИЯ НОВОГО ПРОЕКТА
+function validateProjectInput() {
+    const name = input.value.trim();
+    const wrapper = document.getElementById("projectInput").closest(".project-input-wrapper");
+
+    const isEmpty = !name;
+
+    const isDuplicate =
+        !isEmpty && isDuplicateProjectName(
+            name,
+            projectModalMode === "rename" ? editingProjectId : null
+        );
+
+    const invalid = !isEmpty && isDuplicate;
+
+    createProjectBtn.disabled = invalid;
+    createProjectBtn.classList.toggle("disabled", invalid);
+    wrapper.classList.toggle("input-error", invalid);
+
+    input.classList.toggle("input-error", invalid);
 }
 
 function openRenameProjectModal(projectId, currentName) {
@@ -74,6 +112,8 @@ function openRenameProjectModal(projectId, currentName) {
 
     modal.classList.add("active");
 
+    input.addEventListener("input", validateProjectInput);
+    setTimeout(validateProjectInput, 0);
     input.focus();
 }
 
@@ -216,6 +256,8 @@ addBtn.onclick = () => {
 
 closeModal.onclick = () => {
     modal.classList.remove("active");
+    input.classList.remove("input-error");
+    createProjectBtn.disabled = false;
 };
 
 modal.onclick = (e) => {
@@ -249,6 +291,7 @@ createProjectBtn.addEventListener("click", async () => {
 
     if (projectModalMode === "create") {
         const name = input.value.trim();
+        if (isDuplicateProjectName(name)) return;
         if (!name) return;
 
         const res = await fetch('/api/projects', {
@@ -772,6 +815,42 @@ const modelInput = document.getElementById("modelInput");
 
 const rankList = document.querySelector(".rank-list");
 
+// ПРОВЕРКА НАЗВАНИЯ ДОБАВЛЯЕМОЙ МОДЕЛИ НА ДУБЛИКАТ
+function isDuplicateModelName(name) {
+    return models.some(m =>
+        m.name.trim().toLowerCase() === name.trim().toLowerCase()
+    );
+}
+
+// ВАЛИДАЦИЯ НОВОЙ МОДЕЛИ
+function validateModelInput() {
+    const name = modelInput.value.trim();
+    const wrapper = document.querySelector(".input-wrapper");
+
+    const isEmpty = !name;
+
+    // при переименовании разрешаем текущее имя
+    const isDuplicate = !isEmpty && models.some(m => {
+        if (
+            modelModalMode === "rename" &&
+            m.id == editingModelId
+        ) {
+            return false;
+        }
+
+        return m.name.trim().toLowerCase() === name.toLowerCase();
+    });
+
+    const invalid = !isEmpty && isDuplicate;
+
+    createModelBtn.disabled = invalid;
+
+    modelInput.classList.toggle("input-error", invalid);
+    wrapper.classList.toggle("input-error", invalid);
+
+    createModelBtn.classList.toggle("disabled", invalid);
+}
+
 addModelBtn.onclick = () => {
     modelModalMode = "create";
     editingModelId = null;
@@ -781,6 +860,7 @@ addModelBtn.onclick = () => {
     modelModalDescription.innerHTML = " ";
 
     modelInput.classList.remove("hidden");
+    modelInput.addEventListener("input", validateModelInput);
 
     createModelBtn.textContent = "Добавить";
     createModelBtn.classList.remove("danger");
@@ -790,6 +870,7 @@ addModelBtn.onclick = () => {
     modelModal.classList.add("active");
     modelInput.value = "";
     modelInput.focus();
+    validateModelInput();
 };
 
 modelClose.onclick = () => {
@@ -811,6 +892,8 @@ createModelBtn.onclick = async () => {
 
     if (modelModalMode === "create") {
         const name = modelInput.value.trim();
+
+    if (!name || isDuplicateModelName(name)) return;
         if (!name || !currentProjectId) return;
 
         await fetch(`/api/projects/${currentProjectId}/models`, {
@@ -819,7 +902,12 @@ createModelBtn.onclick = async () => {
             body: JSON.stringify({ name })
         });
         modelModal.classList.remove('active');
-        openProject(currentProjectId);
+
+        const activeEl = document.querySelector(
+            `.project-item[data-id="${currentProjectId}"]`
+        );
+
+        await openProject(currentProjectId, activeEl);
     }
 
     if (modelModalMode === "rename") {
@@ -832,7 +920,12 @@ createModelBtn.onclick = async () => {
             body: JSON.stringify({ name: newName })
         });
         modelModal.classList.remove('active');
-        openProject(currentProjectId);
+
+        const activeEl = document.querySelector(
+            `.project-item[data-id="${currentProjectId}"]`
+        );
+
+        await openProject(currentProjectId, activeEl);
     }
 };
 
@@ -867,6 +960,7 @@ function openRenameModelModal(modelId, currentName) {
     createModelBtn.className = "modal-create-btn";
 
     modelModal.classList.add("active");
+    validateModelInput();
 }
 
 function openDeleteModelModal(modelId, currentName) {
@@ -938,7 +1032,12 @@ async function executeModelDelete() {
     });
     modelModal.classList.remove('active');
     resetModelHoldState();
-    openProject(currentProjectId); // Перезагружаем проект
+    
+    const activeEl = document.querySelector(
+        `.project-item[data-id="${currentProjectId}"]`
+    );
+
+    await openProject(currentProjectId, activeEl);
 }
 
 
@@ -1025,7 +1124,7 @@ function renderCriteria(criteriaFromApi) {
 }
 
 function attachCriteriaListeners() {
-    document.querySelectorAll(".criteria-item").forEach(item => {
+    criteriaContainer.querySelectorAll(".criteria-item").forEach(item => {
         const slider = item.querySelector(".criteria-slider");
         const value = item.querySelector(".criteria-value");
         const resetBtn = item.querySelector(".resetWeightBtn");
@@ -1102,7 +1201,7 @@ function animateSlider(slider, from, to, duration = 300) {
 // ОТМЕНА ВСЕХ ИЗМЕНЕНИЙ ВЕСОВ
 document.getElementById("resetWeightsBtn").addEventListener("click", () => {
 
-    document.querySelectorAll(".criteria-item").forEach(item => {
+    criteriaContainer.querySelectorAll(".criteria-item").forEach(item => {
 
         const slider = item.querySelector(".criteria-slider");
         const value = item.querySelector(".criteria-value");
@@ -1124,11 +1223,11 @@ document.getElementById("resetWeightsBtn").addEventListener("click", () => {
 
 // СОХРАНЕНИЕ ВСЕХ НОВЫЙ ВЕСОВ
 document.getElementById("saveWeightsBtn").addEventListener("click", async () => {
-    const sliders = Array.from(document.querySelectorAll(".criteria-slider"));
+    const sliders = Array.from(criteriaContainer.querySelectorAll(".criteria-slider"));
     const rawValues = sliders.map(s => Number(s.value));
     const normalizedValues = normalizeWeightsValues(rawValues);
 
-    const payload = Array.from(document.querySelectorAll(".criteria-item")).map((item, i) => {
+    const payload = Array.from(criteriaContainer.querySelectorAll(".criteria-item")).map((item, i) => {
 
         const slider = item.querySelector(".criteria-slider");
         const valueEl = item.querySelector(".criteria-value");
@@ -1158,7 +1257,7 @@ document.getElementById("saveWeightsBtn").addEventListener("click", async () => 
 
     updateCriteriaSum();
 
-    document.querySelectorAll(".criteria-item").forEach(item => {
+    criteriaContainer.querySelectorAll(".criteria-item").forEach(item => {
         const slider = item.querySelector(".criteria-slider");
         const resetBtn = item.querySelector(".resetWeightBtn");
         const criterionId = item.dataset.id;
@@ -1170,12 +1269,12 @@ document.getElementById("saveWeightsBtn").addEventListener("click", async () => 
 });
 
 // ИЗМЕНЕНИЕ ВЕСОВ КРИТЕРИЕВ
-document.querySelectorAll(".criteria-item").forEach(item => {
+criteriaContainer.querySelectorAll(".criteria-item").forEach(item => {
     const slider = item.querySelector(".criteria-slider");
     const value = item.querySelector(".criteria-value");
 
     slider.addEventListener("input", () => {
-        const sliders = Array.from(document.querySelectorAll(".criteria-slider"));
+        const sliders = Array.from(criteriaContainer.querySelectorAll(".criteria-slider"));
 
         const currentTotal = sliders.reduce((sum, s) => sum + Number(s.value), 0);
 
@@ -1240,7 +1339,7 @@ function saveCriteriaDebounced() {
     criteriaTimeout = setTimeout(async () => {
         if (!currentProjectId) return;
 
-        const payload = Array.from(document.querySelectorAll(".criteria-item")).map(item => {
+        const payload = Array.from(criteriaContainer.querySelectorAll(".criteria-item")).map(item => {
             const slider = item.querySelector(".criteria-slider");
             return {
                 id: item.dataset.id,
@@ -1261,7 +1360,7 @@ function saveCriteriaDebounced() {
 
 // СУММА ВЕСОВ ПО ВСЕМ КРИТЕРИЯМ
 function updateCriteriaSum() {
-    const sliders = document.querySelectorAll(".criteria-slider");
+    const sliders = criteriaContainer.querySelectorAll(".criteria-slider");
 
     let total = 0;
 
@@ -1709,7 +1808,7 @@ function calculateGroupScore(model, group) {
         const crit = criteria.find(c => c.title === name);
         if (!crit) return;
 
-        const value = ratings[name]?.[model.name] || 0;
+        const value = ratings[model.id]?.[crit.id] || 0;
 
         total += value * crit.weight;
         weightSum += crit.weight;

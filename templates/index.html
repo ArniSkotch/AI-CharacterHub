@@ -258,11 +258,14 @@
         </div>
 
         <!-- INPUT FIELD -->
-        <input
-                id="projectInput"
-                class="modal-input"
-                placeholder="Название проекта"
-        >
+        <div class="project-input-wrapper">
+            <input
+                    id="projectInput"
+                    class="modal-input"
+                    placeholder="Название проекта"
+            >
+            <div class="tooltip-text error-tooltip">Проект с таким названием уже существует</div>
+        </div>
 
         <div class="modal-footer">
             <button id="createProjectBtn" class="modal-create-btn">
@@ -281,7 +284,11 @@
         </div>
 
         <div class="modal-description hidden" id="modelModalDescription"></div>
-        <input id="modelInput" class="modal-input" placeholder="Название модели">
+
+        <div class="input-wrapper">
+            <div class="tooltip-text error-tooltip">Модель с таким названием уже существует</div>
+            <input id="modelInput" class="modal-input" placeholder="Название модели">
+        </div>
 
         <div class="modal-footer">
             <button id="createModelBtn" class="modal-create-btn">Добавить</button>
