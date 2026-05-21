@@ -508,6 +508,8 @@ function setProjectState(hasProject) {
 
 // АНАЛИЗ ЧУВСТВИТЕЛЬНОСТИ
 let originalRanking = [];
+let sensitivityOriginalWeights = {};   // исходные веса (из базы)
+let currentSensitivityWeights = {};    // текущие временные веса (для анализа)
 
 async function loadSensitivity() {
     if (!currentProjectId) return;
@@ -522,18 +524,31 @@ async function loadSensitivity() {
 
         container.innerHTML = '';
 
+        // Сохраняем исходные веса (один раз)
+        sensitivityOriginalWeights = {};
         active.forEach(c => {
+            sensitivityOriginalWeights[c.id] = Math.round(c.weight * 100);
+        });
+
+        // Если ещё нет временных весов — инициализируем
+        if (Object.keys(currentSensitivityWeights).length === 0) {
+            currentSensitivityWeights = {...sensitivityOriginalWeights};
+        }
+
+        active.forEach(c => {
+            const currentPercent = currentSensitivityWeights[c.id] || Math.round(c.weight * 100);
+
             const item = document.createElement('div');
             item.className = 'criteria-item';
             item.innerHTML = `
                 <div class="criteria-name">${c.name}</div>
                 <div class="criteria-control">
                     <input type="range" min="0" max="100"
-                        value="${Math.round(c.weight * 100)}"
+                        value="${currentPercent}"
                         class="criteria-slider sensitivity-slider"
                         data-id="${c.id}">
                     <div class="criteria-value" id="sv_${c.id}">
-                        ${Math.round(c.weight * 100)}%
+                        ${currentPercent}%
                     </div>
                 </div>
             `;
@@ -542,20 +557,38 @@ async function loadSensitivity() {
 
         updateSensitivityTotal();
 
-        // Сохраняем исходный рейтинг
+        // Сохраняем исходный рейтинг для показа изменений позиций
         await saveOriginalRanking();
 
-        // === ВАЖНО: Навешиваем обработчик на каждый слайдер ===
+        // Навешиваем обработчики
         document.querySelectorAll('.sensitivity-slider').forEach(slider => {
-            slider.addEventListener('input', debounce(fetchSensitivity, 150));
+            slider.addEventListener('input', debounce(handleSensitivitySlider, 120));
         });
 
         // Первый расчёт
         await fetchSensitivity();
 
+        // Добавляем кнопку сброса (один раз)
+        addSensitivityResetButton();
+
     } catch (e) {
         console.error("Ошибка в loadSensitivity:", e);
     }
+}
+
+function handleSensitivitySlider() {
+    const sliders = document.querySelectorAll('.sensitivity-slider');
+
+    sliders.forEach(slider => {
+        const id = parseInt(slider.dataset.id);
+        currentSensitivityWeights[id] = parseInt(slider.value);
+
+        const valueEl = document.getElementById(`sv_${id}`);
+        if (valueEl) valueEl.textContent = slider.value + '%';
+    });
+
+    updateSensitivityTotal();
+    fetchSensitivity();
 }
 
 async function saveOriginalRanking() {
@@ -572,16 +605,19 @@ async function saveOriginalRanking() {
 
 function updateSensitivityTotal() {
     let total = 0;
-    document.querySelectorAll('.sensitivity-slider')
-        .forEach(s => total += Number(s.value));
-    document.getElementById('sensitivityTotal').textContent = total + '%';
+    document.querySelectorAll('.sensitivity-slider').forEach(s => {
+        total += Number(s.value);
+    });
+    const el = document.getElementById('sensitivityTotal');
+    if (el) el.textContent = total + '%';
 }
 
 async function fetchSensitivity() {
     try {
         const params = new URLSearchParams();
-        document.querySelectorAll('.sensitivity-slider').forEach(s => {
-            params.set(`w_${s.dataset.id}`, s.value / 100);
+
+        Object.entries(currentSensitivityWeights).forEach(([id, value]) => {
+            params.set(`w_${id}`, value / 100);
         });
 
         const res = await fetch(`/api/projects/${currentProjectId}/sensitivity?${params}`);
@@ -589,7 +625,7 @@ async function fetchSensitivity() {
 
         const newResults = await res.json();
 
-        // === Рендер списка моделей ===
+        // Обновляем список рейтинга
         const container = document.getElementById('sensitivityResults');
         container.innerHTML = '';
 
@@ -624,13 +660,40 @@ async function fetchSensitivity() {
             container.appendChild(item);
         });
 
-        // === ГЕНЕРАЦИЯ ПОДРОБНЫХ РЕКОМЕНДАЦИЙ ===
         generateDetailedRecommendations(newResults);
 
     } catch (e) {
-        console.error("Ошибка при пересчёте:", e);
+        console.error("Ошибка при пересчёте чувствительности:", e);
     }
 }
+
+function addSensitivityResetButton() {
+    // Удаляем старую кнопку, если есть
+    const existing = document.getElementById('sensitivityResetBtn');
+    if (existing) existing.remove();
+
+    const container = document.querySelector('#sensitivitySliders').parentElement;
+
+    const resetBtn = document.createElement('button');
+    resetBtn.id = 'sensitivityResetBtn';
+    resetBtn.className = 'reset-sensitivity-btn';
+    resetBtn.textContent = '↺ Сбросить к исходным весам';
+    resetBtn.style.marginTop = '12px';
+
+    resetBtn.onclick = () => {
+        currentSensitivityWeights = {...sensitivityOriginalWeights};
+
+        // Перезагружаем слайдеры
+        loadSensitivity();
+    };
+
+    container.appendChild(resetBtn);
+}
+
+
+
+
+
 function generateDetailedRecommendations(newResults) {
     const container = document.getElementById('recContent');
     if (!container) return;
