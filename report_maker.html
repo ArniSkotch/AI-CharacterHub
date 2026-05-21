@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Аналитический отчёт по проекту</title>
+    <style>
+        /* ------------------ СТИЛИ ДЛЯ КРАСИВОГО PDF ------------------ */
+        @page {
+            size: A4;
+            margin: 2cm;
+            @top-right {
+                content: "Отчёт по проекту";
+                font-size: 9pt;
+                color: #888;
+            }
+            @bottom-center {
+                content: "Страница " counter(page) " из " counter(pages);
+                font-size: 9pt;
+                color: #888;
+            }
+        }
+        body {
+            font-family: 'DejaVu Sans', 'Arial', sans-serif;
+            line-height: 1.4;
+            color: #1e2a3a;
+        }
+        h1 {
+            color: #0f3b5c;
+            border-left: 6px solid #f39c12;
+            padding-left: 20px;
+            margin-top: 30px;
+        }
+        h2 {
+            color: #2c3e50;
+            border-bottom: 2px solid #e67e22;
+            padding-bottom: 6px;
+            margin-top: 25px;
+        }
+        .logo {
+            text-align: right;
+            margin-bottom: 20px;
+        }
+        .logo img {
+            max-height: 60px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            font-size: 12pt;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px 12px;
+            text-align: left;
+        }
+        th {
+            background-color: #e67e22;
+            color: white;
+        }
+        tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+        .rating-1 { background-color: #ffd700; font-weight: bold; } /* золото */
+        .rating-2 { background-color: #c0c0c0; } /* серебро */
+        .rating-3 { background-color: #cd7f32; } /* бронза */
+        .insight {
+            background-color: #ecf0f1;
+            padding: 12px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+        .footer {
+            font-size: 9pt;
+            color: #7f8c8d;
+            text-align: center;
+            margin-top: 40px;
+            border-top: 1px solid #bdc3c7;
+            padding-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <!-- Логотип (замените путь на свой) -->
+    <div class="logo">
+        <img src="logo.png" alt="Логотип">
+    </div>
+
+    <h1>Аналитический отчёт по проекту</h1>
+    <p>Дата генерации: {{ generation_date }}</p>
+
+    <!-- Блок 1: Модель-лидер -->
+    <h2>🏆 Лидер рейтинга</h2>
+    <p>По итогам оценки, модель <strong>{{ best_model.name }}</strong> занимает первое место в рейтинге данного проекта.<br>
+    Согласно подсчётам взвешенных результатов, модель проявила себя
+    <span class="badge {{ best_model.badge_class }}">{{ best_model.performance_text }}</span>.
+    </p>
+
+    <!-- Блок 2: Таблица рейтинга моделей -->
+    <h2>📊 Рейтинг всех моделей</h2>
+    <table>
+        <thead>
+            <tr><th>Место</th><th>Название модели</th><th>Взвешенная оценка</th><th>Макс. оценка</th><th>Коэфф. (от макс)</th></tr>
+        </thead>
+        <tbody>
+            {% for model in ranking %}
+            <tr {% if loop.index == 1 %}class="rating-1"{% elif loop.index == 2 %}class="rating-2"{% elif loop.index == 3 %}class="rating-3"{% endif %}>
+                <td>{{ loop.index }}</td>
+                <td>{{ model.name }}</td>
+                <td>{{ "%.2f"|format(model.weighted_score) }}</td>
+                <td>{{ "%.2f"|format(model.max_score) }}</td>
+                <td>{{ "%.2f"|format(model.ratio) }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <!-- Блок 3: Критерии по уровням -->
+    <h2>📌 Анализ критериев</h2>
+    <p>Среди <strong>{{ total_criteria_count }}</strong> критериев, влияющих на оценку, стоит отметить:</p>
+    <ul>
+        {% if high_criteria %}
+        <li><strong>Высокие показатели (4-5):</strong> {{ high_criteria|join(", ") }}</li>
+        {% endif %}
+        {% if mid_criteria %}
+        <li><strong>Средние показатели (3):</strong> {{ mid_criteria|join(", ") }}</li>
+        {% endif %}
+        {% if low_criteria %}
+        <li><strong>Низкие показатели (1-2):</strong> {{ low_criteria|join(", ") }}</li>
+        {% endif %}
+    </ul>
+
+    <!-- Блок 4: Группы критериев -->
+    <h2>🎯 Оценка групп критериев</h2>
+    <table>
+        <thead><tr><th>Группа</th><th>Средний балл</th><th>Уровень</th></tr></thead>
+        <tbody>
+            {% for group in groups %}
+            <tr>
+                <td>{{ group.name }}</td>
+                <td>{{ "%.1f"|format(group.avg_score) }}</td>
+                <td><span class="badge {{ group.badge_class }}">{{ group.level_text }}</span></td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <!-- Блок 5: Потенциальные кандидаты -->
+    {% if candidates %}
+    <h2>🔄 Потенциальные кандидаты при другом распределении весов</h2>
+    {% for cand in candidates %}
+    <div class="insight">
+        <strong>{{ cand.name }}</strong> лучше проявляет себя в:<br>
+        <ul>{% for crit in cand.better_criteria %}<li>{{ crit }}</li>{% endfor %}</ul>
+    </div>
+    {% endfor %}
+    {% endif %}
+
+    <!-- Блок 6: Чувствительность -->
+    <h2>⚖️ Чувствительность анализа к весам критериев</h2>
+    {% if sensitivity_v >= 0.7 %}
+    <p><strong>Высокая</strong> – результаты крайне чувствительны к изменению весов (коэфф. v = {{ "%.2f"|format(sensitivity_v) }})</p>
+    {% elif sensitivity_v >= 0.4 %}
+    <p><strong>Средняя</strong> – некоторые модели могут сменить место при незначительном изменении весов (v = {{ "%.2f"|format(sensitivity_v) }})</p>
+    {% elif sensitivity_v >= 0.2 %}
+    <p><strong>Низкая</strong> – рейтинг может поменяться, но незначительно (v = {{ "%.2f"|format(sensitivity_v) }})</p>
+    {% else %}
+    <p><strong>Крайне низкая</strong> – веса малозначительно влияют на рейтинг (v = {{ "%.2f"|format(sensitivity_v) }})</p>
+    {% endif %}
+
+
+</body>
+</html>

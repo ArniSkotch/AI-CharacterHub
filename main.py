@@ -196,7 +196,8 @@ def save_res(id,res):
     for i in res:
         s_k = i.S_k
         m_name = i.model.name
-        newjson.append({m_name : s_k})
+        k_k = i.K_k
+        newjson.append({m_name : [s_k,k_k]})
     prev_res = p.prev_result
     if prev_res:
         p.prev_prev_result = prev_res
