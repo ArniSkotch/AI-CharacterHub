@@ -5,11 +5,18 @@ const menuBtn = document.getElementById("menuButton");
 const sidebar = document.querySelector(".sidebar");
 const container = document.querySelector(".container");
 
-menuBtn.onclick = () => {
-    sidebar.classList.toggle("active");
-    container.classList.toggle("shift");
-};
+function setSidebarState(isOpen) {
 
+    sidebar.classList.toggle("active", isOpen);
+    container.classList.toggle("shift", isOpen);
+
+    localStorage.setItem("sidebarOpen", isOpen);
+}
+
+menuBtn.onclick = () => {
+    const isOpen = !sidebar.classList.contains("active");
+    setSidebarState(isOpen);
+};
 
 // СОЗДАТЬ И ДОБАВИТЬ НОВЫЙ ПРОЕКТ
 const addBtn = document.getElementById("addProjectBtn");
@@ -747,10 +754,15 @@ async function initApp() {
     await loadProjects();
 
     const lastId = localStorage.getItem("lastProjectId");
+    const lastTab = localStorage.getItem("lastTab");
 
     if (!lastId) {
         setProjectState(false);
         return;
+    }
+
+    if (lastTab && pages[lastTab]) {
+        await switchTab(lastTab);
     }
 
     const el = [...document.querySelectorAll(".project-item")]
@@ -762,6 +774,36 @@ async function initApp() {
     }
 
     await openProject(lastId, el);
+}
+
+// ОБРАБОТКА ОТКРЫТИЯ ВКЛАДОК
+async function switchTab(name) {
+
+    tabs.forEach(t => t.classList.remove("active"));
+
+    const targetTab = [...tabs].find(
+        t => t.textContent.trim() === name
+    );
+
+    if (targetTab) {
+        targetTab.classList.add("active");
+    }
+
+    Object.values(pages).forEach(p => p.classList.remove("active"));
+
+    if (pages[name]) {
+        pages[name].classList.add("active");
+    }
+
+    localStorage.setItem("lastTab", name);
+
+    if (name === "Результаты" && currentProjectId) {
+        await renderAllCharts();
+    }
+
+    if (name === "Анализ" && currentProjectId) {
+        await loadSensitivity();
+    }
 }
 
 async function openProject(id, el) {
@@ -1117,6 +1159,7 @@ const pages = {
 
 tabs.forEach(tab => {
     tab.addEventListener("click", async () => {
+        await switchTab(tab.textContent.trim());
 
         // убрать active у всех tabs
         tabs.forEach(t => t.classList.remove("active"));
@@ -1125,8 +1168,10 @@ tabs.forEach(tab => {
         // скрыть все страницы
         Object.values(pages).forEach(p => p.classList.remove("active"));
 
-        // показать нужную
+        // показать нужную и сохранить как последнюю посещённую
         const name = tab.textContent.trim();
+        localStorage.setItem("lastTab", name);
+
         if (pages[name]) {
             pages[name].classList.add("active");
 
@@ -2099,7 +2144,9 @@ function calculateGroupScoreByName(modelId, groupName) {
 }
 
 // ОТВЕЧАЕТ ЗА СТАРТ СТРАНИЦЫ
-document.addEventListener("DOMContentLoaded", async () => {
+document.addEventListener("DOMContentLoaded", async () => {    
     await initApp();
+    const sidebarOpen = localStorage.getItem("sidebarOpen") === "true";
+    setSidebarState(sidebarOpen);
     document.body.classList.remove("booting");
 });
