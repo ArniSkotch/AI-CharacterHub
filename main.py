@@ -159,6 +159,7 @@ def get_results(id):
     results = calculate_scores(p)
     lastresult = datetime.datetime.now()
     p.last_result_at = lastresult
+    save_res(id,results)
     db.session.commit()
     return jsonify(results)
 
@@ -196,10 +197,11 @@ def save_res(id,res):
     p= Project.query.get_or_404(id)
     newjson = []
     for i in res:
-        s_k = i.S_k
-        m_name = i.model.name
-        k_k = i.K_k
-        model_id = i.model.id
+        print(i)
+        s_k = i["S_k"]
+        m_name = i['model']['name']
+        k_k = i["K_k"]
+        model_id = i['model']['id']
         newjson.append({m_name : [s_k,k_k,model_id]})
     prev_res = p.prev_result
     if prev_res:
@@ -282,6 +284,8 @@ def get_top_models(id):
 
     results.sort(key=lambda x: x['score'], reverse=True)
     return jsonify(results[:3])
+
+
 
 if __name__ == '__main__':
     app.run(debug=True)
