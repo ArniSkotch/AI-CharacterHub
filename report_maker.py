@@ -6,10 +6,8 @@ from datetime import datetime
 from fpdf import FPDF
 from models import db, Project, AIModel, Criterion, Score
 
-# ========== НАСТРОЙКИ ==========
-FONT_NAME = "DejaVuSans.ttf"   # ваш шрифт
+FONT_NAME = "DejaVuSans.ttf"
 
-# ========== ФУНКЦИИ ПОЛУЧЕНИЯ ДАННЫХ ==========
 def get_results(project_id):
     p = Project.query.get_or_404(project_id)
     raw = p.prev_result
@@ -78,12 +76,12 @@ def interpret_score(ratio):
     if ratio >= 0.3: return "плохо"
     return "ужасно"
 
-# ========== КЛАСС PDF ==========
 class PDF(FPDF):
     def __init__(self, font_file):
         super().__init__()
         self.font_file = font_file
         self.font_name = "CustomFont"
+        self.set_margins(20, 20, 20)
         if os.path.exists(self.font_file):
             self.add_font(self.font_name, '', self.font_file, uni=True)
             self.set_font(self.font_name, '', 10)
@@ -106,25 +104,20 @@ class PDF(FPDF):
         self.set_text_color(128, 128, 128)
         self.cell(0, 10, f'Страница {self.page_no()}', 0, 0, 'C')
 
-# ========== ОСНОВНАЯ ФУНКЦИЯ ГЕНЕРАЦИИ ==========
 def generate_report(project_id, output_pdf_path):
     print(f"=== Генерация отчёта для проекта {project_id} ===")
     try:
-        # ---- Получение данных ----
         res = get_results(project_id)
         if not res:
             raise ValueError("Нет данных для отчёта")
-        print("res:", res)
 
         sorted_items = sorted(res.items(), key=lambda x: x[1][0], reverse=True)
         if not sorted_items:
             raise ValueError("Нет отсортированных элементов")
-        print("sorted_items:", sorted_items)
 
         best_model_name, best_model_data = sorted_items[0]
         best_model_score = best_model_data[0]
         best_model_id = best_model_data[2]
-        print(f"best_model: {best_model_name}, score={best_model_score}, id={best_model_id}")
 
         ranking = []
         for name, data in sorted_items:
@@ -134,22 +127,16 @@ def generate_report(project_id, output_pdf_path):
                 "k_k": data[1],
                 "model_id": data[2]
             })
-        print("ranking length:", len(ranking))
 
-        # ---- Анализ ----
         criteria = get_criteria_analysis(best_model_id)
         groups = get_groups_analysis(best_model_id)
-        total_criteria_count = len(criteria["high"]) + len(criteria["mid"]) + len(criteria["low"])
-        print("criteria:", {k: len(v) for k, v in criteria.items()})
-        print("groups:", groups)
+        total_criteria_count = (len(criteria["high"]) + len(criteria["mid"]) + len(criteria["low"]))
 
-        # ---- Создание PDF ----
         font_path = os.path.join(os.path.dirname(__file__), FONT_NAME)
         pdf = PDF(font_path)
         pdf.add_page()
         pdf.set_auto_page_break(auto=True, margin=25)
 
-        # Заголовок
         pdf.set_font(pdf.font_name, '', 20)
         pdf.set_text_color(15, 59, 92)
         pdf.cell(0, 12, "Аналитический отчёт по проекту", ln=1, align='C')
@@ -158,7 +145,6 @@ def generate_report(project_id, output_pdf_path):
         pdf.cell(0, 6, f"Дата генерации: {datetime.now().strftime('%d.%m.%Y %H:%M')}", ln=1, align='C')
         pdf.ln(10)
 
-        # Лидер рейтинга
         pdf.set_font(pdf.font_name, '', 14)
         pdf.set_text_color(44, 62, 80)
         pdf.cell(0, 8, "🏆 Лидер рейтинга", ln=1)
@@ -167,23 +153,19 @@ def generate_report(project_id, output_pdf_path):
         pdf.multi_cell(0, 6, f"По итогам оценки, модель {best_model_name} занимает первое место в рейтинге данного проекта.\nСогласно подсчётам взвешенных результатов, модель проявила себя {interpret_score(best_model_score)} (оценка {best_model_score:.2f}).")
         pdf.ln(6)
 
-        # Таблица рейтинга
         pdf.set_font(pdf.font_name, '', 14)
         pdf.set_text_color(44, 62, 80)
         pdf.cell(0, 8, "📊 Рейтинг всех моделей", ln=1)
         pdf.ln(4)
 
-        col_widths = [20, 60, 40, 30, 20]
+        col_widths = [20, 60, 35, 30, 25]
         pdf.set_font(pdf.font_name, '', 9)
         headers = ["Место", "Название модели", "s_k", "k_k", "ID"]
-        # Проверка, что количество ширины колонок совпадает
         for i, h in enumerate(headers):
-            if i < len(col_widths):
-                pdf.cell(col_widths[i], 8, h, border=1, align='C')
+            pdf.cell(col_widths[i], 8, h, border=1, align='C')
         pdf.ln(8)
 
         for idx, model in enumerate(ranking, start=1):
-            # Цвет фона
             if idx == 1:
                 pdf.set_fill_color(255, 215, 0)
             elif idx == 2:
@@ -192,16 +174,19 @@ def generate_report(project_id, output_pdf_path):
                 pdf.set_fill_color(205, 127, 50)
             else:
                 pdf.set_fill_color(255, 255, 255)
-            # Безопасное получение значений
+
+            model_name = model.get("name", "")
+            if len(model_name) > 20:
+                model_name = model_name[:18] + ".."
             pdf.cell(col_widths[0], 7, str(idx), border=1, align='C', fill=True)
-            pdf.cell(col_widths[1], 7, model.get("name", ""), border=1, fill=True)
+            pdf.cell(col_widths[1], 7, model_name, border=1, fill=True)
             pdf.cell(col_widths[2], 7, f"{model.get('s_k', 0):.2f}", border=1, align='R', fill=True)
             pdf.cell(col_widths[3], 7, f"{model.get('k_k', 0):.2f}", border=1, align='R', fill=True)
             pdf.cell(col_widths[4], 7, str(model.get("model_id", "")), border=1, align='C', fill=True)
             pdf.ln(7)
         pdf.ln(8)
+        pdf.set_x(pdf.l_margin)
 
-        # Анализ критериев
         pdf.set_font(pdf.font_name, '', 14)
         pdf.set_text_color(44, 62, 80)
         pdf.cell(0, 8, f"📌 Анализ критериев (модель {best_model_name})", ln=1)
@@ -209,20 +194,27 @@ def generate_report(project_id, output_pdf_path):
         pdf.set_text_color(0, 0, 0)
         pdf.multi_cell(0, 5, f"Среди {total_criteria_count} критериев, влияющих на оценку, стоит отметить:")
         pdf.ln(2)
+        pdf.set_x(pdf.l_margin)
 
         if criteria.get("high"):
-            pdf.cell(0, 5, "• Высокие показатели (4–5): " + ", ".join(criteria["high"]), ln=1)
+            text = "• Высокие показатели (4–5): " + ", ".join(criteria["high"])
+            pdf.multi_cell(0, 5, text)
+            pdf.set_x(pdf.l_margin)
         if criteria.get("mid"):
-            pdf.cell(0, 5, "• Средние показатели (2.5–4): " + ", ".join(criteria["mid"]), ln=1)
+            text = "• Средние показатели (2.5–4): " + ", ".join(criteria["mid"])
+            pdf.multi_cell(0, 5, text)
+            pdf.set_x(pdf.l_margin)
         if criteria.get("low"):
-            pdf.cell(0, 5, "• Низкие показатели (1–2.5): " + ", ".join(criteria["low"]), ln=1)
+            text = "• Низкие показатели (1–2.5): " + ", ".join(criteria["low"])
+            pdf.multi_cell(0, 5, text)
+            pdf.set_x(pdf.l_margin)
         pdf.ln(6)
 
-        # Группы критериев
         pdf.set_font(pdf.font_name, '', 14)
         pdf.set_text_color(44, 62, 80)
         pdf.cell(0, 8, "🎯 Оценка групп критериев", ln=1)
         pdf.ln(4)
+        pdf.set_x(pdf.l_margin)
 
         col_groups = [60, 50, 60]
         pdf.set_font(pdf.font_name, '', 10)
