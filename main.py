@@ -208,7 +208,7 @@ def save_res(id,res):
     db.session.commit()
 
 
-@app.get('/api/projects/<int:id>/report')
+@app.get('/api/projects/<int:project_id>/report')
 def report_generation(project_id):
     fd, temp_path = tempfile.mkstemp(suffix='.pdf')
     os.close(fd)
@@ -220,7 +220,7 @@ def report_generation(project_id):
         def cleanup(response):
             try:
                 os.remove(temp_path)
-            except:
+            except Exception:
                 pass
             return response
 
@@ -233,7 +233,7 @@ def report_generation(project_id):
     except Exception as e:
         if os.path.exists(temp_path):
             os.remove(temp_path)
-        abort(500, f'Ошибка генерации отчёта: {e}')
+        abort(500, description=f'Ошибка генерации отчёта: {str(e)}')
 
 
 
