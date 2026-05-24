@@ -1,5 +1,7 @@
 let currentProjectId = null;
 const criteriaContainer = document.getElementById("criteriaContainer");
+const GROUP_NAMES = ["Точность", "Устойчивость", "Контекст"];
+
 // САЙДБАР
 const menuBtn = document.getElementById("menuButton");
 const sidebar = document.querySelector(".sidebar");
@@ -854,7 +856,7 @@ async function openProject(id, el) {
 
     criteria = apiCriteria
         .filter(c => c.enabled)
-        .map(c => ({ id: c.id, title: c.name, weight: c.weight * 100 }));
+        .map(c => ({ id: c.id, title: c.name, weight: c.weight * 100, group: c.group }));
 
     const scoresRes = await fetch(`/api/projects/${id}/scores`);
     const scoresData = await scoresRes.json();
@@ -1911,30 +1913,6 @@ function updateShowMoreState() {
 
 
 // СТОЛБЧАТЫЕ ДИАГРАММЫ В РЕЗУЛЬТАТАХ
-const criteriaGroups = [
-    { name: "Точность", criteria: ["Точность ответа", "Логичность и структура", "Глубина ответа"] },
-    { name: "Устойчивость", criteria: ["Устойчивость к шуму", "Обработка сложных запросов"] },
-    { name: "Контекст", criteria: ["Контекстная согласованность"] }
-];
-
-// общий рассчёт оценок для диаграмм
-function calculateGroupScore(model, group) {
-    let total = 0;
-    let weightSum = 0;
-
-    group.criteria.forEach(name => {
-        const crit = criteria.find(c => c.title === name);
-        if (!crit) return;
-
-        const value = ratings[model.id]?.[crit.id] || 0;
-
-        total += value * crit.weight;
-        weightSum += crit.weight;
-    });
-
-    return weightSum ? total / weightSum : 0;
-}
-
 // рендер холста под диаграммы
 async function renderChart(container, group) {
     if (!currentProjectId) return;
@@ -2003,8 +1981,8 @@ async function renderAllCharts() {
 
     await Promise.all(
         Array.from(blocks).map((block, i) => {
-            const group = criteriaGroups[i];
-            if (group) return renderChart(block, group);
+            const groupName = GROUP_NAMES[i];
+            if (groupName) return renderChart(block, { name: groupName });
             return Promise.resolve();
         })
     );
@@ -2117,17 +2095,9 @@ async function renderRadarChart() {
 
 
 function calculateGroupScoreByName(modelId, groupName) {
-    const groupCriteria = {
-        'Точность': ['Точность ответа', 'Логичность и структура', 'Глубина и полнота ответа', 'Гибкость в интерпретации', 'Адекватность формата'],
-        'Устойчивость': ['Устойчивость к нагрузке', 'Обработка сложных запросов', 'Восприятие неоднозначности', 'Анализ и синтез информации'],
-        'Контекст': ['Контекстная согласованность', 'Адаптивность к стилю', 'Чувствительность к контексту']
-    };
+    const criteriaInGroup = criteria.filter(c => c.group === groupName);
 
-    const criteriaInGroup = criteria.filter(c =>
-        groupCriteria[groupName]?.includes(c.title)
-    );
-
-    if (criteriaInGroup.length === 0) return 0;
+    if (criteriaInGroup.length === 0) return 0; 
 
     let total = 0;
     let weightSum = 0;
