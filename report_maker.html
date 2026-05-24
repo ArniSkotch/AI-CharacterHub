@@ -7,22 +7,25 @@
         @page {
             size: A4;
             margin: 2cm;
-            @top-right { content: "Отчёт по проекту"; font-size: 9pt; color: #555; }
-            @bottom-center { content: "Страница " counter(page) " из " counter(pages); font-size: 9pt; color: #555; }
+            margin-bottom: 2.5cm;
+        }
+        @font-face {
+            font-family: 'SpaceMono';
+            src: url('static/fonts/SpaceMono-Regular.ttf') format('truetype');
         }
         body {
-            font-family: 'DejaVu Sans', 'Arial', sans-serif;
+            font-family: 'Space Mono', monospace;
             line-height: 1.4;
-            color: #1e2a3a;
+            color: var(--text-primary);
         }
         h1 {
-            color: #0f3b5c;
-            border-left: 6px solid #f39c12;
+            color: #231458;
+            border-left: 6px solid var(--purple-light);
             padding-left: 20px;
         }
         h2 {
-            color: #2c3e50;
-            border-bottom: 2px solid #e67e22;
+            color: var(--purple-dark);
+            border-bottom: 2px solid var(--purple-mid);
             padding-bottom: 6px;
             margin-top: 25px;
         }
@@ -39,15 +42,15 @@
             text-align: left;
         }
         th {
-            background-color: #e67e22;
+            background-color: var(--purple-mid);
             color: white;
         }
-        tr:nth-child(even) { background-color: #f9f9f9; }
-        .rating-1 { background-color: #ffd700; font-weight: bold; }
+        tr:nth-child(even) { background-color: var(--purple-ghost); }
+        .rating-1 { background-color: #9900ff; font-weight: bold; }
         .rating-2 { background-color: #c0c0c0; }
-        .rating-3 { background-color: #cd7f32; }
+        .rating-3 { background-color: #8232cd; }
         .insight {
-            background-color: #ecf0f1;
+            background-color: var(--purple-pale);
             padding: 12px;
             border-radius: 8px;
             margin: 20px 0;
@@ -63,6 +66,12 @@
     </style>
 </head>
 <body>
+    <div id="footer-content" style="display: none;">
+        <p style="font-size:9pt; color:#7f8c8d; text-align:center;">
+            Страница <pdf:pagenumber/> из <pdf:pagecount/>
+            &nbsp;&nbsp;|&nbsp;&nbsp; Отчёт по проекту
+        </p>
+    </div>
     <div class="logo">
         <img src="logo.png" alt="Логотип">
     </div>
@@ -71,12 +80,12 @@
     <p>Дата генерации: {{ generation_date }}</p>
 
     <!-- Лидер рейтинга -->
-    <h2>🏆 Лидер рейтинга</h2>
+    <h2>Лидер рейтинга</h2>
     <p>По итогам оценки, модель <strong>{{ best_model_name }}</strong> занимает первое место в рейтинге данного проекта.<br>
     Согласно подсчётам взвешенных результатов, модель проявила себя <strong>{{ best_model_performance }}</strong> (оценка {{ "%.2f"|format(best_model_score) }}).</p>
 
     <!-- Таблица рейтинга всех моделей -->
-    <h2>📊 Рейтинг всех моделей</h2>
+    <h2>Рейтинг всех моделей</h2>
     <table>
         <thead>
             <tr><th>Место</th><th>Название модели</th><th>Взвешенная оценка (s_k)</th><th>Коэффициент (k_k)</th><th>ID модели</th></tr>
@@ -95,16 +104,22 @@
     </table>
 
     <!-- Анализ критериев (для лучшей модели) -->
-    <h2>📌 Анализ критериев (модель {{ best_model_name }})</h2>
+    <h2>Анализ критериев (модель {{ best_model_name }})</h2>
     <p>Среди <strong>{{ total_criteria_count }}</strong> критериев, влияющих на оценку, стоит отметить:</p>
     <ul>
-        {% if high_criteria %}<li><strong>Высокие показатели (4–5):</strong> {{ high_criteria|join(", ") }}</li>{% endif %}
-        {% if mid_criteria %}<li><strong>Средние показатели (2.5–4):</strong> {{ mid_criteria|join(", ") }}</li>{% endif %}
-        {% if low_criteria %}<li><strong>Низкие показатели (1–2.5):</strong> {{ low_criteria|join(", ") }}</li>{% endif %}
+        {% if high_criteria and high_criteria is iterable %}
+            <li><strong>Высокие показатели (4–5):</strong> {{ high_criteria|join(", ") }}</li>
+        {% endif %}
+        {% if high_criteria and high_criteria is iterable %}
+            <li><strong>Средние показатели (3):</strong> {{ high_criteria|join(", ") }}</li>
+        {% endif %}
+        {% if high_criteria and high_criteria is iterable %}
+            <li><strong>Низкие показатели (1–2):</strong> {{ high_criteria|join(", ") }}</li>
+        {% endif %}
     </ul>
 
     <!-- Группы критериев (для лучшей модели) -->
-    <h2>🎯 Оценка групп критериев (модель {{ best_model_name }})</h2>
+    <h2>Оценка групп критериев (модель {{ best_model_name }})</h2>
     <table>
         <thead><tr><th>Группа</th><th>Средний балл</th><th>Уровень</th></tr></thead>
         <tbody>

@@ -189,7 +189,15 @@
 
                 <!-- ПОДРАЗДЕЛ АНАЛИЗА -->
                 <div class="page" id="page-analysis">
-                    <h2>Анализ</h2>
+                    <div class="section-title">Анализ</div>
+                    <div class="report-actions">
+                        <button class="btn-generate" id="btn-generate" onclick="generateReport(currentProjectId)">
+                            Сгенерировать отчёт (PDF)
+                        </button>
+                    </div>
+
+                    <!-- ИНЛАЙН-АНАЛИЗ -->
+                    <div id="analysis-content" class="analysis-content hidden"></div>
                 </div>
             </div>
         </div>

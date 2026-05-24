@@ -157,8 +157,17 @@ def save_scores(id):
 def get_results(id):
     p = Project.query.get_or_404(id)
     results = calculate_scores(p)
-    lastresult = datetime.datetime.now()
-    p.last_result_at = lastresult
+    p.last_result_at = datetime.datetime.now()
+
+    # Сохраняем результаты для отчёта
+    prev = [
+        {r['model']['name']: [r['S_k'], r['K_k'], r['model']['id']]}
+        for r in results
+    ]
+    if p.prev_result:
+        p.prev_prev_result = p.prev_result
+    p.prev_result = prev          # db.JSON сериализует сам, json.dumps не нужен
+
     db.session.commit()
     return jsonify(results)
 
@@ -208,13 +217,21 @@ def save_res(id,res):
     db.session.commit()
 
 
+@app.get('/api/projects/<int:id>/analysis')
+def get_analysis(id):
+    from report_maker import collect_analysis_data
+    data = collect_analysis_data(id)
+    if not data:
+        return jsonify({'error': 'Нет данных. Сначала выполните расчёт результатов.'}), 404
+    return jsonify(data)
+
 @app.get('/api/projects/<int:id>/report')
-def report_generation(project_id):
+def report_generation(id):
     fd, temp_path = tempfile.mkstemp(suffix='.pdf')
     os.close(fd)
 
     try:
-        generate_report(project_id, temp_path)
+        generate_report(id, temp_path)
 
         @after_this_request
         def cleanup(response):
@@ -227,7 +244,7 @@ def report_generation(project_id):
         return send_file(
             temp_path,
             as_attachment=True,
-            download_name=f'project_{project_id}_report.pdf',
+            download_name=f'project_{id}_report.pdf',
             mimetype='application/pdf'
         )
     except Exception as e:

@@ -577,6 +577,18 @@ tabs.forEach(tab => {
             if (name === "Результаты" && currentProjectId) {
                 await renderAllCharts();
             }
+
+            if (name === "Анализ" && currentProjectId) {
+                await renderAnalysis(currentProjectId);
+            }
+
+            // Сбрасываем кнопку генерации отчёта при уходе с вкладки Анализ
+            if (name !== "Анализ") {
+                const btn = document.getElementById('btn-generate');
+                if (btn && !btn.disabled) {
+                    btn.textContent = 'Скачать отчёт (PDF)';
+                }
+            }
         }
     });
 });
@@ -1379,6 +1391,133 @@ function calculateGroupScoreByName(modelId, groupName) {
 
     return weightSum ? total / weightSum : 0;
 }
+
+// ОТОБРАЖЕНИЕ АНАЛИЗА НА СТРАНИЦЕ
+async function renderAnalysis(projectId) {
+    const box = document.getElementById('analysis-content');
+    if (!box || !projectId) return;
+
+    box.classList.remove('hidden');
+    box.innerHTML = '<div class="analysis-loading">Загрузка данных...</div>';
+
+    try {
+        const res = await fetch(`/api/projects/${projectId}/analysis`);
+
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({ error: 'Нет данных' }));
+            box.innerHTML = `<div class="analysis-error">${err.error || 'Ошибка загрузки'}</div>`;
+            return;
+        }
+
+        const d = await res.json();
+
+        // Таблица рейтинга
+        const medalClass = ['gold', 'silver', 'bronze'];
+        const rankRows = d.ranking.map((m, i) => `
+            <tr class="${medalClass[i] || ''}">
+                <td>${i + 1}</td>
+                <td>${m.name}</td>
+                <td>${m.s_k.toFixed(2)}</td>
+                <td>${m.k_k.toFixed(2)}</td>
+            </tr>
+        `).join('');
+
+        // Список критериев
+        const critBlock = (label, items, cls) => items.length ? `
+            <div class="crit-group ${cls}">
+                <div class="crit-group-label">${label}</div>
+                <ul>${items.map(x => `<li>${x}</li>`).join('')}</ul>
+            </div>` : '';
+
+        // Таблица групп
+        const groupRows = d.groups.map(g => `
+            <tr>
+                <td>${g.name}</td>
+                <td>${g.avg_score.toFixed(1)}</td>
+                <td>${g.level_text}</td>
+            </tr>
+        `).join('');
+
+        box.innerHTML = `
+            <div class="analysis-date">Данные актуальны на: ${d.generation_date}</div>
+
+            <div class="analysis-section">
+                <div class="analysis-section-title">Лидер рейтинга</div>
+                <p>Модель <strong>${d.best_model_name}</strong> заняла первое место.<br>
+                Результат: <strong>${d.best_model_performance}</strong>
+                (взвешенная оценка ${d.best_model_score.toFixed(2)}).</p>
+            </div>
+
+            <div class="analysis-section">
+                <div class="analysis-section-title">Рейтинг всех моделей</div>
+                <table class="analysis-table">
+                    <thead>
+                        <tr><th>Место</th><th>Модель</th><th>Оценка (s_k)</th><th>Коэф. (k_k)</th></tr>
+                    </thead>
+                    <tbody>${rankRows}</tbody>
+                </table>
+            </div>
+
+            <div class="analysis-section">
+                <div class="analysis-section-title">Анализ критериев — ${d.best_model_name}</div>
+                <p>Из <strong>${d.total_criteria_count}</strong> критериев:</p>
+                ${critBlock('Высокие показатели (4–5)', d.high_criteria, 'high')}
+                ${critBlock('Средние показатели (3)',   d.mid_criteria,  'mid')}
+                ${critBlock('Низкие показатели (1–2)',  d.low_criteria,  'low')}
+            </div>
+
+            <div class="analysis-section">
+                <div class="analysis-section-title">Оценка групп критериев — ${d.best_model_name}</div>
+                <table class="analysis-table">
+                    <thead>
+                        <tr><th>Группа</th><th>Средний балл</th><th>Уровень</th></tr>
+                    </thead>
+                    <tbody>${groupRows}</tbody>
+                </table>
+            </div>
+        `;
+
+    } catch (err) {
+        box.innerHTML = `<div class="analysis-error">Ошибка: ${err.message}</div>`;
+    }
+}
+
+// ЛОГИКА ГЕНЕРАЦИИ PDF (ВКЛАДКА АНАЛИЗ)
+async function generateReport(projectId) {
+    const btn = document.getElementById('btn-generate');
+
+    btn.disabled    = true;
+    btn.textContent = 'Генерация...';
+
+    try {
+        const response = await fetch(`/api/projects/${projectId}/report`);
+
+        if (!response.ok) {
+            const text = await response.text();
+            throw new Error(`Сервер вернул ${response.status}: ${text}`);
+        }
+
+        const blob     = await response.blob();
+        const blobUrl  = URL.createObjectURL(blob);
+        const filename = `project_${projectId}_report.pdf`;
+
+        const a    = document.createElement('a');
+        a.href     = blobUrl;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 5000);
+
+        btn.disabled    = false;
+        btn.textContent = 'Готово! Скачать ещё раз';
+
+    } catch (err) {
+        alert(`Ошибка генерации отчёта: ${err.message}`);
+        btn.disabled    = false;
+        btn.textContent = 'Скачать отчёт (PDF)';
+    }
+};
 
 // ОТВЕЧАЕТ ЗА СТАРТ СТРАНИЦЫ
 document.addEventListener("DOMContentLoaded", async () => {

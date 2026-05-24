@@ -1081,6 +1081,41 @@ body.booting .main-wrapper {
     min-height: 240px;
 }
 
+/* ===== ANALYSIS ===== */
+
+.report-actions {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin: 24px 0;
+    padding: 16px 20px;
+    background: #f8f9fb;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+}
+
+.btn-generate {
+    padding: 10px 24px;
+    background-color: #6d28d9;
+    color: #fff;
+    font-size: 14px;
+    font-weight: 600;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.btn-generate:hover  { background-color: #3b0764; }
+.btn-generate:disabled { background-color: #5e1cc5; cursor: not-allowed; }
+
+#report-link a {
+    color: #6d28d9;
+    font-weight: bold;
+    text-decoration: none;
+}
+#report-link a:hover { text-decoration: underline; }
+
 /* ===== SCROLLBAR ===== */
 
 ::-webkit-scrollbar {
@@ -1125,4 +1160,110 @@ body.booting .main-wrapper {
     opacity: 0.4;
     pointer-events: none;
     transition: opacity 0.2s ease;
+}
+
+
+/* ===== ANALYSIS PAGE ===== */
+
+.analysis-content {
+    margin-top: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.analysis-content.hidden { display: none; }
+
+.analysis-loading,
+.analysis-error {
+    padding: 20px;
+    text-align: center;
+    color: var(--text-muted, #7f8c8d);
+    font-size: 14px;
+}
+
+.analysis-error { color: #e74c3c; }
+
+.analysis-date {
+    font-size: 12px;
+    color: var(--text-muted, #7f8c8d);
+    text-align: right;
+}
+
+.analysis-section {
+    background: var(--bg-card, #fff);
+    border-radius: var(--radius, 12px);
+    padding: 20px 24px;
+    box-shadow: 0 1px 4px rgba(0,0,0,.06);
+}
+
+.analysis-section p {
+    margin: 8px 0 0;
+    font-size: 14px;
+    line-height: 1.6;
+    color: var(--text, #1e2a3a);
+}
+
+.analysis-section-title {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--text, #1e2a3a);
+    margin-bottom: 12px;
+    padding-bottom: 8px;
+    border-bottom: 2px solid var(--purple-mid);
+}
+
+/* Таблицы анализа */
+.analysis-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 12px;
+    font-size: 13px;
+}
+
+.analysis-table th {
+    background: var(--purple-mid);
+    color: #fff;
+    padding: 8px 12px;
+    text-align: left;
+    font-weight: 600;
+}
+
+.analysis-table td {
+    padding: 8px 12px;
+    border-bottom: 1px solid #eee;
+    color: var(--text, #1e2a3a);
+}
+
+.analysis-table tbody tr:nth-child(even) td {
+    background: var(--purple-ghost);
+}
+
+.analysis-table tbody tr.gold   td { background: #fff8dc; font-weight: 600; }
+.analysis-table tbody tr.silver td { background: #f5f5f5; font-weight: 600; }
+.analysis-table tbody tr.bronze td { background: #fdf0e0; font-weight: 600; }
+
+/* Блоки критериев */
+.crit-group {
+    margin-top: 10px;
+    padding: 10px 14px;
+    border-radius: 8px;
+    font-size: 13px;
+}
+
+.crit-group.high { background: #eafaf1; border-left: 4px solid #27ae60; }
+.crit-group.mid  { background: #fef9e7; border-left: 4px solid #f39c12; }
+.crit-group.low  { background: #fdf0f0; border-left: 4px solid #e74c3c; }
+
+.crit-group-label {
+    font-weight: 700;
+    margin-bottom: 6px;
+    font-size: 13px;
+}
+
+.crit-group ul {
+    margin: 0;
+    padding-left: 18px;
+    line-height: 1.8;
+    color: var(--text, #1e2a3a);
 }
