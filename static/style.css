@@ -96,6 +96,7 @@ html, body {
 body.booting .main-wrapper {
     opacity: 0;
     pointer-events: none;
+    overflow: hidden;
 }
 
 /* ===== TOPBAR ===== */
@@ -219,6 +220,11 @@ body.booting .main-wrapper {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    position: relative;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-right: 8px;
 }
 
 .project-item:hover,
@@ -227,14 +233,6 @@ body.booting .main-wrapper {
     transform: translateX(3px);
 }
 
-/* Обновляем существующий .project-item для выравнивания */
-.project-item {
-    position: relative;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding-right: 8px;
-}
 .project-item .project-name {
     flex: 1;
     overflow: hidden;
@@ -549,7 +547,8 @@ body.booting .main-wrapper {
     margin-top: 8px;
 }
 
-#addModelBtn {
+#addModelBtn,
+#saveWeightsBtn {
     padding: 10px 20px;
     background: linear-gradient(135deg, var(--purple-mid), var(--purple-light));
     border: none;
@@ -563,7 +562,9 @@ body.booting .main-wrapper {
     box-shadow: 0 4px 14px rgba(109,40,217,0.3);
 }
 
-#addModelBtn:hover {
+#addModelBtn:hover,
+#saveWeightsBtn:hover,
+#resetWeightsBtn:hover {
     opacity: 0.9;
     transform: translateY(-1px);
 }
@@ -628,6 +629,7 @@ body.booting .main-wrapper {
     width: 100%;
     padding: 10px 12px;
     border: 1.5px solid var(--border);
+    box-sizing: border-box;
     border-radius: var(--radius-md);
     margin-bottom: 16px;
     font-size: 14px;
@@ -717,6 +719,48 @@ body.booting .main-wrapper {
     object-fit: contain;
 }
 
+/* Стили для кнопки "..." у моделей */
+.model-ellipsis {
+    opacity: 0;
+    transition: opacity 0.2s;
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 18px;
+    line-height: 1;
+    color: var(--text-secondary);
+    user-select: none;
+    margin-left: auto; /* Прижимает вправо во flex-контейнере */
+    margin-right: 10px;
+}
+
+.rank-item:hover .model-ellipsis {
+    opacity: 1;
+}
+
+.model-ellipsis:hover {
+    background: var(--purple-pale);
+    color: var(--purple-mid);
+}
+
+/* Контекстное меню для моделей */
+#modelContextMenu {
+    position: fixed;
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-pop);
+    padding: 6px 0;
+    z-index: 5000;
+    display: none;
+    min-width: 160px;
+    animation: fadeUp 0.15s ease-out;
+}
+
+#modelContextMenu.visible {
+    display: block;
+}
+
 /* ===== CRITERIA ===== */
 
 .criteria-group {
@@ -761,8 +805,9 @@ body.booting .main-wrapper {
 .criteria-control {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 12px;
     min-width: 220px;
+    min-height: 30px;
     justify-content: flex-end;
 }
 
@@ -775,13 +820,14 @@ body.booting .main-wrapper {
     width: 40px;
     text-align: right;
     font-family: 'Space Mono', monospace;
-    font-size: 12px;
+    font-size: 14px;
     color: var(--purple-mid);
     font-weight: 700;
 }
 
 .criteria-summary-box {
     margin-top: 16px;
+    margin-bottom: 16px;
     background: linear-gradient(135deg, var(--purple-pale), #f3e8ff);
     border-radius: var(--radius-lg);
     padding: 14px 18px;
@@ -792,7 +838,7 @@ body.booting .main-wrapper {
 }
 
 .criteria-summary-left {
-    font-size: 14px;
+    font-size: 18px;
     font-weight: 700;
     color: var(--text-primary);
 }
@@ -802,6 +848,143 @@ body.booting .main-wrapper {
     font-size: 18px;
     font-weight: 700;
     color: var(--purple-mid);
+}
+
+.resetWeightBtn {
+    width: 30px;
+    height: 30px;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    border: 1px solid var(--purple-mid);
+    border-radius: 10px;
+
+    background: rgba(255,255,255,0.03);
+
+    color: var(--purple-mid);
+    font-size: 18px;
+    cursor: pointer;
+
+    transition:
+        transform 0.4s ease,
+        background-color 0.2s ease,
+        border-color 0.2s ease,
+        color 0.2s ease;
+}
+
+.resetWeightBtn:hover {
+    background: var(--purple-mid);
+    color: white;
+    transform: rotate(180deg);
+}
+
+.resetWeightBtn:active {
+    transform: scale(0.92) rotate(180deg);
+}
+
+.resetWeightBtn.hiding {
+    animation: hideResetBtn 0.45s ease forwards;
+}
+
+.resetWeightBtn.hidden {
+    opacity: 0;
+    pointer-events: none;
+    transform: scale(0.2);
+}
+
+.resetWeightBtn.inactive {
+    opacity: 0;
+    pointer-events: none;
+    transform: scale(0.2);
+}
+
+@keyframes hideResetBtn {
+    0% {
+        transform: rotate(180deg) scale(1);
+        opacity: 1;
+    }
+
+    100% {
+        transform: rotate(0deg) scale(0.2);
+        opacity: 0;
+    }
+}
+
+.criteria-btn-wrapper {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 12px; /* вот этого тебе не хватало */
+    margin-top: 8px;
+}
+
+#resetWeightsBtn {
+    padding: 10px 20px;
+    margin-right: 10px;
+    background: linear-gradient(135deg, var(--text-primary), var(--text-secondary));
+    border: none;
+    color: white;
+    cursor: pointer;
+    border-radius: var(--radius-pill);
+    font-size: 14px;
+    font-weight: 700;
+    font-family: 'Arial', sans-serif;
+    transition: opacity 0.2s, transform 0.15s;
+    box-shadow: 0 4px 14px rgba(109,40,217,0.3);
+}
+
+/* info-tooltip о нормализации */
+.tooltip-icon {
+    padding: 10px;
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    background: #e5e7eb;
+    color: #374151;
+    font-size: 18px;
+    font-weight: 400;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: default;
+    position: relative;
+    user-select: none;
+}
+
+.tooltip-text {
+    position: absolute;
+    bottom: 130%;
+    left: -300%;
+    transform: translateX(-50%);
+
+    background: #111827;
+    color: #fff;
+
+    padding: 12px 20px;      
+    border-radius: 10px;
+
+    font-size: 13px;
+    white-space: normal;   
+
+    max-width: 300px;
+    min-width: 250px;     
+    min-height: 40px;
+    display: flex;
+    align-items: stretch;
+
+    opacity: 0;
+    visibility: hidden;
+    transition: 0.15s ease;
+
+    pointer-events: none;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.25);
+}   
+
+.tooltip-icon:hover .tooltip-text {
+    opacity: 1;
+    visibility: visible;
 }
 
 /* ===== SCORES TABLE ===== */
@@ -1266,4 +1449,349 @@ body.booting .main-wrapper {
     padding-left: 18px;
     line-height: 1.8;
     color: var(--text, #1e2a3a);
+}
+
+/* Обновляем существующий .project-item для выравнивания */
+.project-item {
+    position: relative;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-right: 8px;
+}
+.project-item .project-name {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    pointer-events: none; /* клик проходит на родителя */
+}
+
+/* Вертикальное многоточие */
+.project-ellipsis {
+    opacity: 0;
+    transition: opacity 0.2s;
+    cursor: pointer;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 18px;
+    line-height: 1;
+    color: var(--text-on-dark);
+    user-select: none;
+    margin-left: 4px;
+}
+.project-item:hover .project-ellipsis {
+    opacity: 1;
+}
+.project-ellipsis:hover {
+    background: rgba(255,255,255,0.25);
+}
+
+/* Контекстное меню (fixed обходит overflow и stacking context родителей) */
+#projectContextMenu {
+    position: fixed;
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-pop);
+    padding: 6px 0;
+    z-index: 5000;
+    display: none;
+    min-width: 160px;
+    animation: fadeUp 0.15s ease-out;
+}
+#projectContextMenu.visible {
+    display: block;
+}
+.context-menu-item {
+    padding: 8px 14px;
+    cursor: pointer;
+    font-size: 13px;
+    color: var(--text-primary);
+    transition: background 0.15s;
+}
+.context-menu-item:hover {
+    background: var(--purple-pale);
+}
+.context-menu-item.delete {
+    color: #dc2626;
+}
+.context-menu-item.delete:hover {
+    background: #fee2e2;
+}
+
+/* Стили для кнопки "..." у моделей */
+.model-ellipsis {
+    opacity: 0;
+    transition: opacity 0.2s;
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 18px;
+    line-height: 1;
+    color: var(--text-secondary);
+    user-select: none;
+    margin-left: auto; /* Прижимает вправо во flex-контейнере */
+    margin-right: 10px;
+}
+
+.rank-item:hover .model-ellipsis {
+    opacity: 1;
+}
+
+.model-ellipsis:hover {
+    background: var(--purple-pale);
+    color: var(--purple-mid);
+}
+
+/* Контекстное меню для моделей */
+#modelContextMenu {
+    position: fixed;
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-pop);
+    padding: 6px 0;
+    z-index: 5000;
+    display: none;
+    min-width: 160px;
+    animation: fadeUp 0.15s ease-out;
+}
+
+#modelContextMenu.visible {
+    display: block;
+}
+.analysis-description {
+    font-size: 14px;
+    color: var(--text-secondary);
+    margin-bottom: 20px;
+}
+
+.analysis-top-row {
+    display: flex;
+    gap: 16px;
+    align-items: flex-start;
+}
+
+.analysis-sliders-block,
+.analysis-results-block {
+    background: var(--card-bg);
+    border-radius: var(--radius-lg);
+    padding: 18px;
+    box-shadow: var(--shadow-card);
+    border: 1px solid var(--border);
+}
+
+.analysis-sliders-block {
+    flex: 0 0 48%;
+}
+
+.analysis-results-block {
+    flex: 1;
+}
+
+.sensitivity-sliders {
+    margin-top: 14px;
+}
+
+.sensitivity-results {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 14px;
+}
+/* ====================== ПОДРОБНЫЕ РЕКОМЕНДАЦИИ ====================== */
+
+.sensitivity-recommendations {
+    background: white;
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.06);
+    border: 1px solid #e5e7eb;
+    margin-top: 24px;
+}
+
+.sensitivity-recommendations .results-recommendations-title {
+    font-size: 18px;
+    font-weight: 600;
+    color: #1f2937;
+    margin-bottom: 16px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid #f3f4f6;
+}
+
+#recContent {
+    line-height: 1.6;
+    color: #374151;
+    font-size: 15px;
+}
+
+#recContent p {
+    margin: 12px 0;
+}
+
+#recContent strong {
+    color: #1f2937;
+}
+
+#recContent ul {
+    padding-left: 20px;
+    margin: 12px 0;
+}
+
+#recContent li {
+    margin: 8px 0;
+    color: #4b5563;
+}
+
+.rec-changes {
+    padding-left: 20px;
+    margin: 12px 0;
+}
+
+.rec-changes li {
+    margin: 10px 0;
+    padding: 6px 0;
+}
+
+.rank-change {
+    font-weight: 700;
+    padding: 3px 10px;
+    border-radius: 9999px;
+    font-size: 14px;
+    display: inline-block;
+    margin-left: 8px;
+}
+
+.rank-change.up {
+    color: #10A888;
+    background-color: #ecfdf5;
+}
+
+.rank-change.down {
+    color: #ef4444;
+    background-color: #fee2e2;
+}
+
+.rank-change.same {
+    color: #6b7280;
+    background-color: #f3f4f6;
+}
+
+/* Адаптивность */
+@media (max-width: 768px) {
+    .sensitivity-recommendations {
+        padding: 16px;
+    }
+}
+
+/* ПРЕДУПРЕЖДЕНИЯ О ДУБЛИКАТЕ ИМЕНИ В МОДАЛКАХ ПРОЕКТОВ И МОДЕЛЕЙ */
+.input-error {
+    color: #dc2626;
+    border-color: #dc2626 !important;
+    border-width: 2.5px;
+}
+
+.input-error::placeholder {
+    color: #fca5a5;
+}
+
+.modal-create-btn.disabled {
+    opacity: 0.5;
+    pointer-events: none;
+}
+
+.input-wrapper {
+    position: relative;
+    margin-bottom: 16px;
+}
+
+.error-tooltip {
+    position: absolute;
+    bottom: 100%;
+    left: 0;
+    transform: translateY(-6px);
+
+    background: #111827;
+    color: #fff;
+
+    padding: 10px 14px;
+    border-radius: 10px;
+
+    font-size: 13px;
+    white-space: nowrap;
+
+    opacity: 0;
+    visibility: hidden;
+
+    transition: 0.15s ease;
+
+    pointer-events: none;
+    z-index: 9999;
+}
+
+.project-input-wrapper.input-error .error-tooltip,
+.input-wrapper.input-error .error-tooltip {
+    opacity: 1;
+    visibility: visible;
+}
+
+.input-wrapper.input-error .modal-input {
+    border: 2px solid #dc2626 !important;
+}
+
+.project-input-wrapper,
+.input-wrapper {
+    position: relative;
+}
+
+/* стиль заголовка секции */
+.section-title {
+    font-family: 'Space Mono', monospace;
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+/* стиль описания под заголовком */
+.analysis-description {
+    font-family: 'Arial', sans-serif;
+    font-size: 14px;
+    color: var(--text-secondary);
+    margin-bottom: 24px;
+    line-height: 1.5;
+}
+
+/* дизайн кнопки сброса */
+.reset-sensitivity-btn {
+    background: linear-gradient(135deg, var(--purple-mid), var(--purple-light));
+    color: white;
+
+    border: none;
+    border-radius: var(--radius-pill);
+    padding: 10px 20px;
+
+    font-family: 'Arial', sans-serif;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+
+    box-shadow: 0 4px 14px rgba(109, 40, 217, 0.3);
+    transition: transform 0.15s, opacity 0.2s;
+
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.reset-sensitivity-btn:hover {
+    opacity: 0.9;
+    transform: translateY(-1px);
+}
+
+.reset-sensitivity-btn:active {
+    transform: translateY(0);
 }

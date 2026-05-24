@@ -5,11 +5,18 @@ const menuBtn = document.getElementById("menuButton");
 const sidebar = document.querySelector(".sidebar");
 const container = document.querySelector(".container");
 
-menuBtn.onclick = () => {
-    sidebar.classList.toggle("active");
-    container.classList.toggle("shift");
-};
+function setSidebarState(isOpen) {
 
+    sidebar.classList.toggle("active", isOpen);
+    container.classList.toggle("shift", isOpen);
+
+    localStorage.setItem("sidebarOpen", isOpen);
+}
+
+menuBtn.onclick = () => {
+    const isOpen = !sidebar.classList.contains("active");
+    setSidebarState(isOpen);
+};
 
 // СОЗДАТЬ И ДОБАВИТЬ НОВЫЙ ПРОЕКТ
 const addBtn = document.getElementById("addProjectBtn");
@@ -23,6 +30,10 @@ const projectList = document.getElementById("projectList");
 // для createProjectBtn при процессе удаления проекта
 let holdStart = 0;
 let holdProgressInterval = null;
+
+// для текущих весов критериев
+const criteriaInitial = {};
+let isAnimatingReset = false;
 
 const projectModalTitle = document.getElementById("projectModalTitle");
 const projectModalDescription = document.getElementById("projectModalDescription");
@@ -49,7 +60,45 @@ function openCreateProjectModal() {
 
     modal.classList.add("active");
 
+    input.addEventListener("input", validateProjectInput);
+    setTimeout(validateProjectInput, 0);
     input.focus();
+}
+
+// ПРОВЕРКА НАЗВАНИЯ ДОБАВЛЯЕМОГО ПРОЕКТА НА ДУБЛИКАТ
+function isDuplicateProjectName(name, excludeId = null) {
+    return Array.from(projectList.querySelectorAll(".project-item"))
+        .some(item => {
+            const itemId = item.dataset.id;
+            const itemName = item.querySelector(".project-name")?.textContent?.trim();
+
+            if (!itemName) return false;
+            if (excludeId && itemId == excludeId) return false;
+
+            return itemName.toLowerCase() === name.trim().toLowerCase();
+        });
+}
+
+// ВАЛИДАЦИЯ НОВОГО ПРОЕКТА
+function validateProjectInput() {
+    const name = input.value.trim();
+    const wrapper = document.getElementById("projectInput").closest(".project-input-wrapper");
+
+    const isEmpty = !name;
+
+    const isDuplicate =
+        !isEmpty && isDuplicateProjectName(
+            name,
+            projectModalMode === "rename" ? editingProjectId : null
+        );
+
+    const invalid = !isEmpty && isDuplicate;
+
+    createProjectBtn.disabled = invalid;
+    createProjectBtn.classList.toggle("disabled", invalid);
+    wrapper.classList.toggle("input-error", invalid);
+
+    input.classList.toggle("input-error", invalid);
 }
 
 function openRenameProjectModal(projectId, currentName) {
@@ -70,6 +119,8 @@ function openRenameProjectModal(projectId, currentName) {
 
     modal.classList.add("active");
 
+    input.addEventListener("input", validateProjectInput);
+    setTimeout(validateProjectInput, 0);
     input.focus();
 }
 
@@ -159,6 +210,19 @@ function cancelHoldDelete() {
     btn.style.setProperty("--hold-progress", "0%");
 }
 
+// Debounce для частых событий (слайдеры)
+function debounce(func, wait) {
+    let timeout;
+    return function executedFunction(...args) {
+        const later = () => {
+            clearTimeout(timeout);
+            func(...args);
+        };
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+    };
+}
+
 async function executeDelete() {
     await fetch(`/api/projects/${editingProjectId}`, {
         method: 'DELETE'
@@ -199,6 +263,8 @@ addBtn.onclick = () => {
 
 closeModal.onclick = () => {
     modal.classList.remove("active");
+    input.classList.remove("input-error");
+    createProjectBtn.disabled = false;
 };
 
 modal.onclick = (e) => {
@@ -232,6 +298,7 @@ createProjectBtn.addEventListener("click", async () => {
 
     if (projectModalMode === "create") {
         const name = input.value.trim();
+        if (isDuplicateProjectName(name)) return;
         if (!name) return;
 
         const res = await fetch('/api/projects', {
@@ -357,6 +424,70 @@ async function loadProjects() {
     });
 }
 
+// ===== КОНТЕКСТНОЕ МЕНЮ МОДЕЛЕЙ =====
+const modelCtxMenu = document.createElement('div');
+
+modelCtxMenu.id = 'modelContextMenu';
+
+modelCtxMenu.innerHTML = `
+    <div class="context-menu-item" id="ctxModelRename">
+        Переименовать
+    </div>
+
+    <div class="context-menu-item delete" id="ctxModelDelete">
+        Удалить
+    </div>
+`;
+
+document.body.appendChild(modelCtxMenu);
+
+let ctxModelTargetId = null;
+
+function showModelCtxMenu(id, btn) {
+    ctxModelTargetId = id;
+
+    const rect = btn.getBoundingClientRect();
+
+    modelCtxMenu.style.top = `${rect.bottom + 5}px`;
+
+    modelCtxMenu.style.left =
+        `${Math.min(rect.left - 140, window.innerWidth - 170)}px`;
+
+    modelCtxMenu.classList.add('visible');
+}
+
+// закрытие при клике вне меню
+document.addEventListener('click', (e) => {
+    if (!modelCtxMenu.contains(e.target)) {
+        modelCtxMenu.classList.remove('visible');
+    }
+});
+
+// ПЕРЕИМЕНОВАНИЕ МОДЕЛИ
+document.getElementById('ctxModelRename').onclick = () => {
+
+    const model = models.find(m => m.id == ctxModelTargetId);
+
+    const currentName = model?.name || "Модель";
+
+    openRenameModelModal(ctxModelTargetId, currentName);
+
+    modelCtxMenu.classList.remove('visible');
+};
+
+// УДАЛЕНИЕ МОДЕЛИ
+document.getElementById('ctxModelDelete').onclick = () => {
+
+    const model = models.find(m => m.id == ctxModelTargetId);
+
+    const currentName = model?.name || "Модель";
+
+    openDeleteModelModal(ctxModelTargetId, currentName);
+
+    modelCtxMenu.classList.remove('visible');
+};
+
+
 // ЛОГИКА СТАРТОВОГО ЭКРАНА
 function setProjectState(hasProject) {
     const emptyState = document.getElementById("emptyProjectState");
@@ -382,15 +513,256 @@ function setProjectState(hasProject) {
     });
 }
 
+// АНАЛИЗ ЧУВСТВИТЕЛЬНОСТИ
+let originalRanking = [];
+let sensitivityOriginalWeights = {};   // исходные веса (из базы)
+let currentSensitivityWeights = {};    // текущие временные веса (для анализа)
+
+async function loadSensitivity() {
+    if (!currentProjectId) return;
+
+    try {
+        const res = await fetch(`/api/projects/${currentProjectId}/criteria`);
+        const criteriaData = await res.json();
+        const active = criteriaData.filter(c => c.enabled);
+
+        const container = document.getElementById('sensitivitySliders');
+        if (!container) return;
+
+        container.innerHTML = '';
+
+        // Сохраняем исходные веса (один раз)
+        sensitivityOriginalWeights = {};
+        active.forEach(c => {
+            sensitivityOriginalWeights[c.id] = Math.round(c.weight * 100);
+        });
+
+        // Если ещё нет временных весов — инициализируем
+        if (Object.keys(currentSensitivityWeights).length === 0) {
+            currentSensitivityWeights = {...sensitivityOriginalWeights};
+        }
+
+        active.forEach(c => {
+            const currentPercent = currentSensitivityWeights[c.id] || Math.round(c.weight * 100);
+
+            const item = document.createElement('div');
+            item.className = 'criteria-item';
+            item.innerHTML = `
+                <div class="criteria-name">${c.name}</div>
+                <div class="criteria-control">
+                    <input type="range" min="0" max="100"
+                        value="${currentPercent}"
+                        class="criteria-slider sensitivity-slider"
+                        data-id="${c.id}">
+                    <div class="criteria-value" id="sv_${c.id}">
+                        ${currentPercent}%
+                    </div>
+                </div>
+            `;
+            container.appendChild(item);
+        });
+
+        updateSensitivityTotal();
+
+        // Сохраняем исходный рейтинг для показа изменений позиций
+        await saveOriginalRanking();
+
+        // Навешиваем обработчики
+        document.querySelectorAll('.sensitivity-slider').forEach(slider => {
+            slider.addEventListener('input', debounce(handleSensitivitySlider, 120));
+        });
+
+        // Первый расчёт
+        await fetchSensitivity();
+
+        // Добавляем кнопку сброса (один раз)
+        addSensitivityResetButton();
+
+    } catch (e) {
+        console.error("Ошибка в loadSensitivity:", e);
+    }
+}
+
+function handleSensitivitySlider() {
+    const sliders = document.querySelectorAll('.sensitivity-slider');
+
+    sliders.forEach(slider => {
+        const id = parseInt(slider.dataset.id);
+        currentSensitivityWeights[id] = parseInt(slider.value);
+
+        const valueEl = document.getElementById(`sv_${id}`);
+        if (valueEl) valueEl.textContent = slider.value + '%';
+    });
+
+    updateSensitivityTotal();
+    fetchSensitivity();
+}
+
+async function saveOriginalRanking() {
+    const res = await fetch(`/api/projects/${currentProjectId}/results`);
+    const data = await res.json();
+
+    originalRanking = data.map((item, index) => ({
+        model_id: item.model?.id || item.model_id,
+        model_name: item.model_name || item.model?.name,
+        rank: index + 1,
+        score: item.K_k
+    }));
+}
+
+function updateSensitivityTotal() {
+    let total = 0;
+    document.querySelectorAll('.sensitivity-slider').forEach(s => {
+        total += Number(s.value);
+    });
+    const el = document.getElementById('sensitivityTotal');
+    if (el) el.textContent = total + '%';
+}
+
+async function fetchSensitivity() {
+    try {
+        const params = new URLSearchParams();
+
+        Object.entries(currentSensitivityWeights).forEach(([id, value]) => {
+            params.set(`w_${id}`, value / 100);
+        });
+
+        const res = await fetch(`/api/projects/${currentProjectId}/sensitivity?${params}`);
+        if (!res.ok) throw new Error('Ошибка сервера');
+
+        const newResults = await res.json();
+
+        // Обновляем список рейтинга
+        const container = document.getElementById('sensitivityResults');
+        container.innerHTML = '';
+
+        newResults.forEach((r, newIndex) => {
+            const modelId = r.model?.id || r.model_id;
+            const original = originalRanking.find(o => o.model_id == modelId);
+            const oldRank = original ? original.rank : 999;
+            const change = (newIndex + 1) - oldRank;
+
+            let arrow = change < 0 ?
+                `<span class="rank-change up">↑ ${Math.abs(change)}</span>` :
+                change > 0 ?
+                    `<span class="rank-change down">↓ ${change}</span>` :
+                    `<span class="rank-change same">→</span>`;
+
+            const percent = Math.round(r.K_k * 100);
+            const tagClass = percent >= 75 ? 'good' : percent >= 60 ? 'ok' : 'bad';
+
+            const item = document.createElement('div');
+            item.className = 'rank-item';
+            item.innerHTML = `
+                <div class="rank-number">${newIndex + 1}</div>
+                <div class="rank-content">
+                    <div class="rank-name">${r.model_name || r.model?.name}</div>
+                    <div class="rank-bar">
+                        <div class="rank-bar-fill" style="width:${percent}%"></div>
+                    </div>
+                </div>
+                <div class="tag ${tagClass}">${percent}%</div>
+                ${arrow}
+            `;
+            container.appendChild(item);
+        });
+
+        generateDetailedRecommendations(newResults);
+
+    } catch (e) {
+        console.error("Ошибка при пересчёте чувствительности:", e);
+    }
+}
+
+function addSensitivityResetButton() {
+    // Удаляем старую кнопку, если есть
+    const existing = document.getElementById('sensitivityResetBtn');
+    if (existing) existing.remove();
+
+    const container = document.querySelector('#sensitivitySliders').parentElement;
+
+    const resetBtn = document.createElement('button');
+    resetBtn.id = 'sensitivityResetBtn';
+    resetBtn.className = 'reset-sensitivity-btn';
+    resetBtn.textContent = '↺ Сбросить к исходным весам';
+    resetBtn.style.marginTop = '12px';
+
+    resetBtn.onclick = () => {
+        currentSensitivityWeights = {...sensitivityOriginalWeights};
+
+        // Перезагружаем слайдеры
+        loadSensitivity();
+    };
+
+    container.appendChild(resetBtn);
+}
+
+
+
+
+
+function generateDetailedRecommendations(newResults) {
+    const container = document.getElementById('recContent');
+    if (!container) return;
+
+    const topModel = newResults[0];
+    const topModelName = topModel.model_name || topModel.model?.name;
+
+    // Находим изменения позиций
+    let biggestGainers = [];
+    let biggestLosers = [];
+
+    newResults.forEach((r, newIndex) => {
+        const modelId = r.model?.id || r.model_id;
+        const original = originalRanking.find(o => o.model_id == modelId);
+        if (!original) return;
+
+        const change = (newIndex + 1) - original.rank;
+
+        if (change < -1) biggestGainers.push({ name: r.model_name || r.model?.name, change: Math.abs(change) });
+        if (change > 1) biggestLosers.push({ name: r.model_name || r.model?.name, change });
+    });
+
+    let html = `<p><strong>Текущий лидер:</strong> ${topModelName} — ${Math.round(topModel.K_k * 100)}%</p>`;
+
+    if (biggestGainers.length > 0) {
+        html += `<p><strong>Сильно выросли:</strong> ${biggestGainers.map(m => m.name).join(', ')}</p>`;
+    }
+    if (biggestLosers.length > 0) {
+        html += `<p><strong>Сильно упали:</strong> ${biggestLosers.map(m => m.name).join(', ')}</p>`;
+    }
+
+    // Рекомендации по сценариям
+    html += `
+        <div class="rec-tips">
+            <strong>Рекомендации:</strong><br>
+            • Если вам важна <strong>максимальная точность</strong> — оставьте текущие веса.<br>
+            • Модель <strong>${topModelName}</strong> сейчас выглядит наиболее сбалансированной.<br>
+    `;
+
+    if (biggestGainers.length > 0) {
+        html += `• При текущих весах выгодно выделяются: <strong>${biggestGainers[0].name}</strong><br>`;
+    }
+
+    html += `</div>`;
+
+    container.innerHTML = html;
+}
+
 // WEBSITE ENTRY POINT
 async function initApp() {
     await loadProjects();
 
     const lastId = localStorage.getItem("lastProjectId");
+    const lastTab = localStorage.getItem("lastTab");
 
     if (!lastId) {
         setProjectState(false);
         return;
+    }
+
+    if (lastTab && pages[lastTab]) {
+        await switchTab(lastTab);
     }
 
     const el = [...document.querySelectorAll(".project-item")]
@@ -402,6 +774,36 @@ async function initApp() {
     }
 
     await openProject(lastId, el);
+}
+
+// ОБРАБОТКА ОТКРЫТИЯ ВКЛАДОК
+async function switchTab(name) {
+
+    tabs.forEach(t => t.classList.remove("active"));
+
+    const targetTab = [...tabs].find(
+        t => t.textContent.trim() === name
+    );
+
+    if (targetTab) {
+        targetTab.classList.add("active");
+    }
+
+    Object.values(pages).forEach(p => p.classList.remove("active"));
+
+    if (pages[name]) {
+        pages[name].classList.add("active");
+    }
+
+    localStorage.setItem("lastTab", name);
+
+    if (name === "Результаты" && currentProjectId) {
+        await renderAllCharts();
+    }
+
+    if (name === "Анализ" && currentProjectId) {
+        await loadSensitivity();
+    }
 }
 
 async function openProject(id, el) {
@@ -435,7 +837,7 @@ async function openProject(id, el) {
         scoreMap[r.model.id] = r.K_k; 
     });
 
-    updateProjectStats(apiModels, apiCriteria);
+    updateProjectStats(apiModels, apiCriteria, apiResults);
     renderCriteria(apiCriteria);
 
 
@@ -486,7 +888,7 @@ async function openProject(id, el) {
 }
 
 // ОБНОВЛЕНИЕ БАЗОВЫХ СТАТИСТИК В РАЗДЕЛЕ ПРОЕКТА
-function updateProjectStats(models, criteria, results = null) {
+function updateProjectStats(models, criteria, results = []) {
     const modelsEl = document.getElementById("statModels");
     const criteriaEl = document.getElementById("statCriteria");
     const leaderEl = document.getElementById("statLeader");
@@ -494,14 +896,17 @@ function updateProjectStats(models, criteria, results = null) {
     if (modelsEl) modelsEl.textContent = models.length;
     if (criteriaEl) criteriaEl.textContent = criteria.length;
 
-    if (leaderEl && models.length) {
-        let leader = models[0];
+    if (leaderEl) {
 
-        if (results && results.length) {
-            leader = results.sort((a, b) => b.score - a.score)[0];
+        if (!results || results.length === 0 || models.length === 0) {
+            leaderEl.textContent = "-";
+            return;
         }
 
-        leaderEl.textContent = leader.name;
+        const sorted = [...results].sort((a, b) => b.K_k - a.K_k);
+        const leader = sorted[0];
+
+        leaderEl.textContent = leader?.model?.name ?? "-";
     }
 }
 
@@ -515,37 +920,230 @@ const modelInput = document.getElementById("modelInput");
 
 const rankList = document.querySelector(".rank-list");
 
+// ПРОВЕРКА НАЗВАНИЯ ДОБАВЛЯЕМОЙ МОДЕЛИ НА ДУБЛИКАТ
+function isDuplicateModelName(name) {
+    return models.some(m =>
+        m.name.trim().toLowerCase() === name.trim().toLowerCase()
+    );
+}
+
+// ВАЛИДАЦИЯ НОВОЙ МОДЕЛИ
+function validateModelInput() {
+    const name = modelInput.value.trim();
+    const wrapper = document.querySelector(".input-wrapper");
+
+    const isEmpty = !name;
+
+    // при переименовании разрешаем текущее имя
+    const isDuplicate = !isEmpty && models.some(m => {
+        if (
+            modelModalMode === "rename" &&
+            m.id == editingModelId
+        ) {
+            return false;
+        }
+
+        return m.name.trim().toLowerCase() === name.toLowerCase();
+    });
+
+    const invalid = !isEmpty && isDuplicate;
+
+    createModelBtn.disabled = invalid;
+
+    modelInput.classList.toggle("input-error", invalid);
+    wrapper.classList.toggle("input-error", invalid);
+
+    createModelBtn.classList.toggle("disabled", invalid);
+}
+
 addModelBtn.onclick = () => {
+    modelModalMode = "create";
+    editingModelId = null;
+    modelModalTitle.textContent = "Добавить модель";
+
+    modelModalDescription.classList.add("hidden");
+    modelModalDescription.innerHTML = " ";
+
+    modelInput.classList.remove("hidden");
+    modelInput.addEventListener("input", validateModelInput);
+
+    createModelBtn.textContent = "Добавить";
+    createModelBtn.classList.remove("danger");
+    createModelBtn.classList.remove("holding");
+    createModelBtn.style.setProperty("--hold-progress", "0%");
+
     modelModal.classList.add("active");
     modelInput.value = "";
     modelInput.focus();
+    validateModelInput();
 };
 
 modelClose.onclick = () => {
     modelModal.classList.remove("active");
+    cancelModelHoldDelete();
 };
 
 modelModal.onclick = (e) => {
     if (e.target === modelModal) {
         modelModal.classList.remove("active");
+        cancelModelHoldDelete();
     }
 };
 
 
 // ЛОГИКА ДОБАВЛЕНИЯ НОВОЙ МОДЕЛИ
 createModelBtn.onclick = async () => {
-    const name = modelInput.value.trim();
-    if (!name || !currentProjectId) return;
+    if (modelModalMode === "delete") return;
 
-    await fetch(`/api/projects/${currentProjectId}/models`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name })
-    });
+    if (modelModalMode === "create") {
+        const name = modelInput.value.trim();
 
-    modelModal.classList.remove('active');
-    openProject(currentProjectId); // перезагрузить проект
+    if (!name || isDuplicateModelName(name)) return;
+        if (!name || !currentProjectId) return;
+
+        await fetch(`/api/projects/${currentProjectId}/models`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name })
+        });
+        modelModal.classList.remove('active');
+
+        const activeEl = document.querySelector(
+            `.project-item[data-id="${currentProjectId}"]`
+        );
+
+        await openProject(currentProjectId, activeEl);
+    }
+
+    if (modelModalMode === "rename") {
+        const newName = modelInput.value.trim();
+        if (!newName) return;
+
+        await fetch(`/api/projects/${currentProjectId}/models/${editingModelId}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: newName })
+        });
+        modelModal.classList.remove('active');
+
+        const activeEl = document.querySelector(
+            `.project-item[data-id="${currentProjectId}"]`
+        );
+
+        await openProject(currentProjectId, activeEl);
+    }
 };
+
+// Обработчики удержания для удаления
+createModelBtn.addEventListener("mousedown", () => { if (modelModalMode === "delete") startModelHoldDelete(); });
+createModelBtn.addEventListener("mouseup", () => { if (modelModalMode === "delete") cancelModelHoldDelete(); });
+createModelBtn.addEventListener("mouseleave", () => { if (modelModalMode === "delete") cancelModelHoldDelete(); });
+createModelBtn.addEventListener("touchstart", () => { if (modelModalMode === "delete") startModelHoldDelete(); });
+createModelBtn.addEventListener("touchend", cancelModelHoldDelete);
+
+// ===== ЛОГИКА МОДЕЛЕЙ (ПЕРЕИМЕНОВАНИЕ / УДАЛЕНИЕ) =====
+let modelModalMode = "create"; // create | rename | delete
+let editingModelId = null;
+let modelHoldStart = 0;
+let modelHoldProgressInterval = null;
+
+const modelModalTitle = document.getElementById("modelModalTitle");
+const modelModalDescription = document.getElementById("modelModalDescription");
+
+function openRenameModelModal(modelId, currentName) {
+    modelModalMode = "rename";
+    editingModelId = modelId;
+
+    modelModalTitle.textContent = "Переименовать модель";
+
+    modelModalDescription.classList.add("hidden");
+    modelInput.classList.remove("hidden");
+
+    modelInput.value = currentName;
+
+    createModelBtn.textContent = "Сохранить";
+    createModelBtn.className = "modal-create-btn";
+
+    modelModal.classList.add("active");
+    validateModelInput();
+}
+
+function openDeleteModelModal(modelId, currentName) {
+    modelModalMode = "delete";
+    editingModelId = modelId;
+
+    modelModalTitle.textContent = "Удаление модели";
+
+    modelInput.classList.add("hidden");
+
+    modelModalDescription.classList.remove("hidden");
+    modelModalDescription.innerHTML = `
+        <div class="modal-warning-text">
+            Удалить модель «${currentName}»?
+        </div>
+    `;
+
+    createModelBtn.textContent = "Удалить";
+    createModelBtn.className = "modal-create-btn danger";
+
+    modelModal.classList.add("active");
+}
+
+function startModelHoldDelete() {
+    if (modelModalMode !== "delete") return;
+    if (modelHoldProgressInterval) return;
+    const btn = createModelBtn;
+    let progress = 0;
+    const duration = 200;
+
+    btn.classList.add("holding");
+    modelHoldStart = Date.now();
+
+    modelHoldProgressInterval = setInterval(() => {
+        const elapsed = Date.now() - modelHoldStart;
+        progress = Math.min(elapsed / duration, 1);
+        btn.style.setProperty("--hold-progress", `${progress * 100}%`);
+
+        if (progress >= 1) {
+            clearInterval(modelHoldProgressInterval);
+            executeModelDelete();
+        }
+    }, 16);
+}
+
+function resetModelHoldState() {
+    const btn = createModelBtn;
+    btn.classList.remove("holding");
+    btn.style.pointerEvents = "auto";
+    btn.style.setProperty("--hold-progress", "0%");
+    clearInterval(modelHoldProgressInterval);
+    modelHoldProgressInterval = null;
+}
+
+function cancelModelHoldDelete() {
+    clearInterval(modelHoldProgressInterval);
+    if (modelHoldProgressInterval && createModelBtn.classList.contains("holding")) {
+        resetModelHoldState();
+    }
+    const btn = createModelBtn;
+    btn.classList.remove("holding");
+    btn.style.pointerEvents = "auto";
+    btn.style.setProperty("--hold-progress", "0%");
+}
+
+async function executeModelDelete() {
+    await fetch(`/api/projects/${currentProjectId}/models/${editingModelId}`, {
+        method: 'DELETE'
+    });
+    modelModal.classList.remove('active');
+    resetModelHoldState();
+    
+    const activeEl = document.querySelector(
+        `.project-item[data-id="${currentProjectId}"]`
+    );
+
+    await openProject(currentProjectId, activeEl);
+}
 
 
 // ПЕРЕКЛЮЧЕНИЕ ПОДРАЗДЕЛОВ
@@ -561,6 +1159,7 @@ const pages = {
 
 tabs.forEach(tab => {
     tab.addEventListener("click", async () => {
+        await switchTab(tab.textContent.trim());
 
         // убрать active у всех tabs
         tabs.forEach(t => t.classList.remove("active"));
@@ -569,8 +1168,10 @@ tabs.forEach(tab => {
         // скрыть все страницы
         Object.values(pages).forEach(p => p.classList.remove("active"));
 
-        // показать нужную
+        // показать нужную и сохранить как последнюю посещённую
         const name = tab.textContent.trim();
+        localStorage.setItem("lastTab", name);
+
         if (pages[name]) {
             pages[name].classList.add("active");
 
@@ -579,6 +1180,7 @@ tabs.forEach(tab => {
             }
 
             if (name === "Анализ" && currentProjectId) {
+                await loadSensitivity();
                 await renderAnalysis(currentProjectId);
             }
 
@@ -618,6 +1220,7 @@ function renderCriteria(criteriaFromApi) {
                 <div class="criteria-item" data-id="${c.id}">
                     <div class="criteria-name">${c.name}</div>
                     <div class="criteria-control">
+                        <button class="resetWeightBtn inactive">⭯</button>
                         <input type="range" min="0" max="100"
                             value="${Math.round(c.weight * 100)}"
                             class="criteria-slider">
@@ -625,6 +1228,7 @@ function renderCriteria(criteriaFromApi) {
                     </div>
                 </div>
             `;
+            criteriaInitial[c.id] = Math.round(c.weight * 100);
         });
 
         html += `</div>`;
@@ -638,34 +1242,157 @@ function renderCriteria(criteriaFromApi) {
 }
 
 function attachCriteriaListeners() {
-    document.querySelectorAll(".criteria-item").forEach(item => {
+    criteriaContainer.querySelectorAll(".criteria-item").forEach(item => {
         const slider = item.querySelector(".criteria-slider");
         const value = item.querySelector(".criteria-value");
+        const resetBtn = item.querySelector(".resetWeightBtn");
+        const criterionId = item.dataset.id;
+
+        updateResetButtonState(item, slider, resetBtn, criterionId);
 
         slider.addEventListener("input", () => {
-            const sliders = Array.from(document.querySelectorAll(".criteria-slider"));
-
-            const currentTotal = sliders.reduce((sum, s) => sum + Number(s.value), 0);
-
-            const maxAllowed = 100 - (currentTotal - Number(slider.value));
-
-            let newValue = Math.max(0, Math.min(Number(slider.value), maxAllowed));
+            let newValue = Math.max(0, Math.min(Number(slider.value)));
 
             slider.value = newValue;
             value.textContent = newValue + "%";
 
             updateCriteriaSum();
+            updateResetButtonState(item, slider, resetBtn, criterionId);
+        });
+
+        resetBtn.addEventListener("click", () => {
+
+            if (resetBtn.classList.contains("inactive")) return;
+
+            resetBtn.classList.add("hiding");
+
+            resetBtn.addEventListener("animationend", () => {
+
+                const target = criteriaInitial[criterionId];
+                const current = Number(slider.value);
+
+                animateSlider(slider, current, target, 150);
+
+                resetBtn.classList.remove("hiding");
+
+            }, { once: true });
         });
     });
 }
 
+// ОБНОВЛЕНИЕ СОСТОЯНИЯ КНОПКИ РЕСЕТА
+function updateResetButtonState(item, slider, resetBtn, criterionId) {
+    const initial = criteriaInitial[criterionId];
+    const current = Number(slider.value);
+
+    const isDirty = current !== initial;
+
+    if (isAnimatingReset) {
+        resetBtn.classList.add("inactive");
+        return;
+    }
+
+    resetBtn.classList.toggle("inactive", !isDirty);
+}
+
+function animateSlider(slider, from, to, duration = 300) {
+    const start = performance.now();
+    isAnimatingReset = true;
+
+    function frame(time) {
+        const progress = Math.min((time - start) / duration, 1);
+        const value = from + (to - from) * progress;
+
+        slider.value = value;
+        slider.dispatchEvent(new Event("input"));
+
+        if (progress < 1) {
+            requestAnimationFrame(frame);
+        } else {
+            isAnimatingReset = false;
+        }
+    }
+
+    requestAnimationFrame(frame);
+}
+
+// ОТМЕНА ВСЕХ ИЗМЕНЕНИЙ ВЕСОВ
+document.getElementById("resetWeightsBtn").addEventListener("click", () => {
+
+    criteriaContainer.querySelectorAll(".criteria-item").forEach(item => {
+
+        const slider = item.querySelector(".criteria-slider");
+        const value = item.querySelector(".criteria-value");
+        const resetBtn = item.querySelector(".resetWeightBtn");
+        const criterionId = item.dataset.id;
+
+        const initial = criteriaInitial[criterionId];
+
+        animateSlider(slider, Number(slider.value), initial, 300);
+        slider.value = initial;
+        value.textContent = initial + "%";
+
+        updateResetButtonState(item, slider, resetBtn, criterionId);
+    });
+
+    updateCriteriaSum();
+    saveCriteriaDebounced();
+});
+
+// СОХРАНЕНИЕ ВСЕХ НОВЫЙ ВЕСОВ
+document.getElementById("saveWeightsBtn").addEventListener("click", async () => {
+    const sliders = Array.from(criteriaContainer.querySelectorAll(".criteria-slider"));
+    const rawValues = sliders.map(s => Number(s.value));
+    const normalizedValues = normalizeWeightsValues(rawValues);
+
+    const payload = Array.from(criteriaContainer.querySelectorAll(".criteria-item")).map((item, i) => {
+
+        const slider = item.querySelector(".criteria-slider");
+        const valueEl = item.querySelector(".criteria-value");
+        const criterionId = item.dataset.id;
+
+        const value = normalizedValues[i];
+
+        animateSlider(slider, Number(slider.value), value, 250);
+        valueEl.textContent = value + "%";
+
+        return {
+            id: criterionId,
+            weight: value / 100,
+            enabled: true
+        };
+    });
+
+    await fetch(`/api/projects/${currentProjectId}/criteria`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+    });
+
+    payload.forEach(p => {
+        criteriaInitial[p.id] = Math.round(p.weight * 100);
+    });
+
+    updateCriteriaSum();
+
+    criteriaContainer.querySelectorAll(".criteria-item").forEach(item => {
+        const slider = item.querySelector(".criteria-slider");
+        const resetBtn = item.querySelector(".resetWeightBtn");
+        const criterionId = item.dataset.id;
+
+        updateResetButtonState(item, slider, resetBtn, criterionId);
+    });
+
+    await refreshResults();
+});
+
 // ИЗМЕНЕНИЕ ВЕСОВ КРИТЕРИЕВ
-document.querySelectorAll(".criteria-item").forEach(item => {
+criteriaContainer.querySelectorAll(".criteria-item").forEach(item => {
     const slider = item.querySelector(".criteria-slider");
     const value = item.querySelector(".criteria-value");
 
     slider.addEventListener("input", () => {
-        const sliders = Array.from(document.querySelectorAll(".criteria-slider"));
+        const sliders = Array.from(criteriaContainer.querySelectorAll(".criteria-slider"));
 
         const currentTotal = sliders.reduce((sum, s) => sum + Number(s.value), 0);
 
@@ -690,16 +1417,47 @@ document.querySelectorAll(".criteria-item").forEach(item => {
     });
 });
 
+// НОРМАЛИЗАЦИЯ ВЕСОВ ПРИ СОХРАНЕНИИ НОВЫХ ЗНАЧЕНИЙ
+let isNormalizing = false;
+
+function normalizeWeightsValues(values) {
+    const sum = values.reduce((a, b) => a + b, 0);
+
+    if (sum === 0) {
+        const equal = 100 / values.length;
+        return values.map(() => Math.round(equal));
+    }
+
+    const normalized = values.map(v => (v / sum) * 100);
+
+    const floored = normalized.map(v => Math.floor(v));
+
+    let diff = 100 - floored.reduce((a, b) => a + b, 0);
+
+    // распределяем остаток по наибольшим дробным частям
+    // предохранитель от суммы, не равно 100%
+    const fractions = normalized
+        .map((v, i) => ({ i, frac: v - floored[i] }))
+        .sort((a, b) => b.frac - a.frac);
+
+    for (let i = 0; i < diff; i++) {
+        floored[fractions[i % fractions.length].i]++;
+    }
+
+    return floored;
+}
+
 // ДИНАМИЧЕСКОЕ ИЗМЕНЕНИИ ИНТЕГРАЛЬНОЙ ОЦЕНКИ С ИЗМЕНЕНИЕМ ВЕСОВ КРИТЕРИВ
 let criteriaTimeout = null;
 
 function saveCriteriaDebounced() {
+    // if (isNormalizing) return;
     clearTimeout(criteriaTimeout);
 
     criteriaTimeout = setTimeout(async () => {
         if (!currentProjectId) return;
 
-        const payload = Array.from(document.querySelectorAll(".criteria-item")).map(item => {
+        const payload = Array.from(criteriaContainer.querySelectorAll(".criteria-item")).map(item => {
             const slider = item.querySelector(".criteria-slider");
             return {
                 id: item.dataset.id,
@@ -714,13 +1472,13 @@ function saveCriteriaDebounced() {
             body: JSON.stringify(payload)
         });
 
-        await refreshResults(); // 👈 ВОТ ОНО
+        await refreshResults();
     }, 300);
 }
 
 // СУММА ВЕСОВ ПО ВСЕМ КРИТЕРИЯМ
 function updateCriteriaSum() {
-    const sliders = document.querySelectorAll(".criteria-slider");
+    const sliders = criteriaContainer.querySelectorAll(".criteria-slider");
 
     let total = 0;
 
@@ -926,11 +1684,16 @@ function updateRankList() {
                     <div class="rank-bar-text">${m.score.toFixed(1)}%</div>
                 </div>
             </div>
-            <div class="tag"
-                style="background:${tagStyle.bg}; color:${tagStyle.text};">
-                ${extractTagName(m.label)}
-            </div>
+            <div class="tag" style="background:${tagStyle.bg}; color:${tagStyle.text};"> ${extractTagName(m.label)} </div>
+            <span class="model-ellipsis" data-id="${m.id}">&#8942;</span>
         `;
+
+        const ellipsis = item.querySelector('.model-ellipsis');
+        ellipsis.onclick = (e) => {
+            e.stopPropagation();
+            showModelCtxMenu(m.id, ellipsis);
+        };
+
         rankList.appendChild(item);
     });
 }
@@ -1010,8 +1773,6 @@ function renderResults() {
 
         list.appendChild(item);
     });
-
-    updateShowMoreState();
 }
 
 // обновление всех результатов
@@ -1165,7 +1926,7 @@ function calculateGroupScore(model, group) {
         const crit = criteria.find(c => c.title === name);
         if (!crit) return;
 
-        const value = ratings[name]?.[model.name] || 0;
+        const value = ratings[model.id]?.[crit.id] || 0;
 
         total += value * crit.weight;
         weightSum += crit.weight;
@@ -1520,7 +2281,9 @@ async function generateReport(projectId) {
 };
 
 // ОТВЕЧАЕТ ЗА СТАРТ СТРАНИЦЫ
-document.addEventListener("DOMContentLoaded", async () => {
+document.addEventListener("DOMContentLoaded", async () => {    
     await initApp();
+    const sidebarOpen = localStorage.getItem("sidebarOpen") === "true";
+    setSidebarState(sidebarOpen);
     document.body.classList.remove("booting");
 });
