@@ -1935,18 +1935,6 @@ function calculateGroupScore(model, group) {
     return weightSum ? total / weightSum : 0;
 }
 
-// выбор 5 лучших моделей для диаграмм
-function getTopModels(group) {
-
-    return models
-        .map(model => ({
-            model,
-            score: calculateGroupScore(model.name, group)
-        }))
-        .sort((a, b) => b.score - a.score)
-        .slice(0, 5);
-}
-
 // рендер холста под диаграммы
 async function renderChart(container, group) {
     if (!currentProjectId) return;
@@ -2024,7 +2012,7 @@ async function renderAllCharts() {
     await renderRadarChart();
 }
 
-// TESTTESTTEST
+// RADAR CHART РЕЗУЛЬТАТОВ
 
 let radarChartInstance = null;
 
