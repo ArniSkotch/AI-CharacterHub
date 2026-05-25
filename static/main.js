@@ -1802,6 +1802,7 @@ async function refreshResults() {
         updateRankList();
         renderResults();
         updateProjectStats(models, criteria, apiResults);
+        sortResults();
         await renderAllCharts();
         await renderRadarChart();
 
