@@ -1616,7 +1616,7 @@ function createScoresTable() {
                 </div>
 
                 <div class="crit-weight">
-                    Значимость - ${criterion.weight}%
+                    Значимость - ${Math.round(criterion.weight)}%
                 </div>
             </div>
         `;
