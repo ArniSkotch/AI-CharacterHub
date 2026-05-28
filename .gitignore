@@ -16,3 +16,4 @@ Thumbs.db
 
 # Database
 instance/*.db
+criteria_hints.txt
