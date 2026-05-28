@@ -122,15 +122,7 @@
                         <button class="show-more-btn">Показать больше</button>
                     </div>
                 </div>
-                <div class="results-recommendations">
-                    <div class="results-recommendations-title">Рекомендации</div>
-                    <div class="results-recommendations-text">Для получения рекомендаций начните оценивание</div>
-                </div>
-                <div class="results-charts">
-                    <div class="chart-block"></div>
-                    <div class="chart-block"></div>
-                    <div class="chart-block"></div>
-                </div>
+                <div class="results-charts" id="resultsChartsContainer"></div>
             </div>
 
             <!-- ПОДРАЗДЕЛ АНАЛИЗА -->
@@ -151,14 +143,13 @@
                         <div id="sensitivityResults" class="sensitivity-results"></div>
                     </div>
                 </div>
-                <div class="results-recommendations" style="margin-top:16px;">
-                    <div class="results-recommendations-title">Вывод</div>
-                    <div class="results-recommendations-text" id="sensitivityConclusion">Передвиньте слайдер чтобы увидеть как меняется результат</div>
+                <div class="results-radar-block analysis-radar-block" style="margin-top:16px;">
+                    <div class="results-block-header">Сравнение моделей (текущие веса)</div>
+                    <div class="radar-container">
+                        <canvas id="analysisRadarChart" width="400" height="400"></canvas>
+                    </div>
                 </div>
-                <div id="sensitivityRecommendations" class="sensitivity-recommendations" style="margin-top:24px;">
-                    <div class="results-recommendations-title">Подробные рекомендации</div>
-                    <div id="recContent" class="results-recommendations-text">Перемещайте ползунки весов критериев чтобы увидеть как меняется результат</div>
-                </div>
+
                 <div class="report-actions">
                     <button class="btn-generate" id="btn-generate" onclick="generateReport(currentProjectId)">Сгенерировать отчёт (PDF)</button>
                 </div>

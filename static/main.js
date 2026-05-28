@@ -1,6 +1,5 @@
 let currentProjectId = null;
 const criteriaContainer = document.getElementById("criteriaContainer");
-const GROUP_NAMES = ["Точность", "Устойчивость", "Контекст"];
 
 // САЙДБАР
 const menuBtn = document.getElementById("menuButton");
@@ -669,7 +668,7 @@ async function fetchSensitivity() {
             container.appendChild(item);
         });
 
-        generateDetailedRecommendations(newResults);
+        await renderAnalysisRadarChart(newResults);
 
     } catch (e) {
         console.error("Ошибка при пересчёте чувствительности:", e);
@@ -703,53 +702,6 @@ function addSensitivityResetButton() {
 
 
 
-function generateDetailedRecommendations(newResults) {
-    const container = document.getElementById('recContent');
-    if (!container) return;
-
-    const topModel = newResults[0];
-    const topModelName = topModel.model_name || topModel.model?.name;
-
-    // Находим изменения позиций
-    let biggestGainers = [];
-    let biggestLosers = [];
-
-    newResults.forEach((r, newIndex) => {
-        const modelId = r.model?.id || r.model_id;
-        const original = originalRanking.find(o => o.model_id == modelId);
-        if (!original) return;
-
-        const change = (newIndex + 1) - original.rank;
-
-        if (change < -1) biggestGainers.push({ name: r.model_name || r.model?.name, change: Math.abs(change) });
-        if (change > 1) biggestLosers.push({ name: r.model_name || r.model?.name, change });
-    });
-
-    let html = `<p><strong>Текущий лидер:</strong> ${topModelName} — ${Math.round(topModel.K_k * 100)}%</p>`;
-
-    if (biggestGainers.length > 0) {
-        html += `<p><strong>Сильно выросли:</strong> ${biggestGainers.map(m => m.name).join(', ')}</p>`;
-    }
-    if (biggestLosers.length > 0) {
-        html += `<p><strong>Сильно упали:</strong> ${biggestLosers.map(m => m.name).join(', ')}</p>`;
-    }
-
-    // Рекомендации по сценариям
-    html += `
-        <div class="rec-tips">
-            <strong>Рекомендации:</strong><br>
-            • Если вам важна <strong>максимальная точность</strong> — оставьте текущие веса.<br>
-            • Модель <strong>${topModelName}</strong> сейчас выглядит наиболее сбалансированной.<br>
-    `;
-
-    if (biggestGainers.length > 0) {
-        html += `• При текущих весах выгодно выделяются: <strong>${biggestGainers[0].name}</strong><br>`;
-    }
-
-    html += `</div>`;
-
-    container.innerHTML = html;
-}
 
 // WEBSITE ENTRY POINT
 async function initApp() {
@@ -812,6 +764,13 @@ async function openProject(id, el) {
     currentProjectId = id;
     localStorage.setItem("lastProjectId", id);
     setProjectState(true); // проверка необходимости приветственного экрана
+
+    // Сбрасываем состояние анализа и оценок при смене проекта
+    currentSensitivityWeights = {};
+    sensitivityOriginalWeights = {};
+    originalRanking = [];
+    // Очищаем кэш оценок, чтобы данные старого проекта не попадали в графики нового
+    Object.keys(ratings).forEach(k => delete ratings[k]);
 
     document.querySelectorAll('.project-item').forEach(i => i.classList.remove('active'));
     if (el) el.classList.add('active');
@@ -887,6 +846,13 @@ async function openProject(id, el) {
     updateShowMoreState(); // обновление состояния кнопки showmore в Результатах
     updateRankList();      // обновление рейтинга моделей
     await renderRadarChart();
+
+    // Если вкладка Анализ уже открыта — перезагружаем её под новый проект
+    const activeTabName = document.querySelector('.tab.active')?.textContent.trim();
+    if (activeTabName === 'Анализ') {
+        await loadSensitivity();
+        await renderAnalysis(currentProjectId);
+    }
 }
 
 // ОБНОВЛЕНИЕ БАЗОВЫХ СТАТИСТИК В РАЗДЕЛЕ ПРОЕКТА
@@ -1968,6 +1934,9 @@ async function renderChart(container, group) {
 
         topModels.forEach(item => {
             const percentage = (item.score * 20).toFixed(1); // переводим из 1-5 в проценты (примерно)
+            const shortName = item.model_name.length > 7
+                ? item.model_name.slice(0, 7) + '…'
+                : item.model_name;
 
             const bar = document.createElement("div");
             bar.style.display = "flex";
@@ -1976,15 +1945,15 @@ async function renderChart(container, group) {
             bar.style.marginTop = "12px";
 
             bar.innerHTML = `
-                <div style="width: 85px; font-size: 13px; font-weight: 600;">
-                    ${item.model_name}
+                <div title="${item.model_name}" style="width: 72px; flex-shrink: 0; font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                    ${shortName}
                 </div>
 
                 <div style="flex: 1; height: 11px; background:#e5e7eb; border-radius: 999px; overflow:hidden;">
                     <div style="width:${percentage}%; height:100%; background:linear-gradient(90deg, #8b5cf6, #c084fc);"></div>
                 </div>
 
-                <div style="width: 48px; font-size: 13px; font-family: 'Space Mono', monospace; text-align:right;">
+                <div style="width: 48px; flex-shrink: 0; font-size: 13px; font-family: 'Space Mono', monospace; text-align:right;">
                     ${percentage}%
                 </div>
             `;
@@ -2003,16 +1972,36 @@ async function renderChart(container, group) {
     }
 }
 
-// рендер 3 диаграмм
+// рендер диаграмм по группам, взятым из текущих критериев проекта
 async function renderAllCharts() {
-    const blocks = document.querySelectorAll(".chart-block");
+    const container = document.getElementById('resultsChartsContainer');
+    if (!container) return;
 
+    // Собираем уникальные группы из текущих критериев (в порядке первого появления)
+    const uniqueGroups = [];
+    const seen = new Set();
+    criteria.forEach(c => {
+        if (c.group && !seen.has(c.group)) {
+            seen.add(c.group);
+            uniqueGroups.push(c.group);
+        }
+    });
+
+    // Пересоздаём нужное число .chart-block элементов
+    container.innerHTML = '';
+    uniqueGroups.forEach(() => {
+        const block = document.createElement('div');
+        block.className = 'chart-block';
+        container.appendChild(block);
+    });
+
+    // Адаптируем grid-columns под количество групп
+    const cols = Math.min(uniqueGroups.length, 3);
+    container.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
+
+    const blocks = container.querySelectorAll('.chart-block');
     await Promise.all(
-        Array.from(blocks).map((block, i) => {
-            const groupName = GROUP_NAMES[i];
-            if (groupName) return renderChart(block, { name: groupName });
-            return Promise.resolve();
-        })
+        uniqueGroups.map((groupName, i) => renderChart(blocks[i], { name: groupName }))
     );
 
     await renderRadarChart();
@@ -2036,28 +2025,33 @@ async function renderRadarChart() {
         return;
     }
 
-    const labels = ['Точность', 'Устойчивость', 'Контекст'];
+    // Динамически собираем уникальные группы из текущих критериев
+    const labels = [];
+    const seen = new Set();
+    criteria.forEach(c => {
+        if (c.group && !seen.has(c.group)) {
+            seen.add(c.group);
+            labels.push(c.group);
+        }
+    });
 
-    const datasets = results.slice(0, 5).map((result, index) => {  // максимум 5 моделей
+    if (labels.length === 0) return;
+
+    const chartColors = [
+        '#8b5cf6', '#ec4899', '#14b8a6', '#f59e0b', '#3b82f6'
+    ];
+
+    const datasets = results.slice(0, 5).map((result, index) => {
         const model = result.model;
-        const scores = {
-            'Точность': calculateGroupScoreByName(model.id, 'Точность'),
-            'Устойчивость': calculateGroupScoreByName(model.id, 'Устойчивость'),
-            'Контекст': calculateGroupScoreByName(model.id, 'Контекст')
-        };
-
-        const colors = [
-            '#8b5cf6', '#ec4899', '#14b8a6', '#f59e0b', '#3b82f6'
-        ];
 
         return {
             label: model.name,
-            data: labels.map(label => scores[label] || 0),
+            data: labels.map(groupName => calculateGroupScoreByName(model.id, groupName)),
             fill: true,
-            backgroundColor: colors[index % colors.length] + '33',
-            borderColor: colors[index % colors.length],
+            backgroundColor: chartColors[index % chartColors.length] + '33',
+            borderColor: chartColors[index % chartColors.length],
             borderWidth: 3,
-            pointBackgroundColor: colors[index % colors.length],
+            pointBackgroundColor: chartColors[index % chartColors.length],
             pointBorderColor: '#fff',
             pointHoverBorderColor: '#fff',
             pointRadius: 5,
@@ -2065,17 +2059,13 @@ async function renderRadarChart() {
         };
     });
 
-
     if (radarChartInstance) {
         radarChartInstance.destroy();
     }
 
     radarChartInstance = new Chart(canvas, {
         type: 'radar',
-        data: {
-            labels: labels,
-            datasets: datasets
-        },
+        data: { labels, datasets },
         options: {
             responsive: true,
             maintainAspectRatio: true,
@@ -2083,38 +2073,19 @@ async function renderRadarChart() {
                 r: {
                     min: 0,
                     max: 5,
-                    ticks: {
-                        stepSize: 1,
-                        font: { size: 11 }
-                    },
-                    grid: {
-                        color: '#e2e8f0'
-                    },
-                    angleLines: {
-                        color: '#e2e8f0'
-                    },
-                    pointLabels: {
-                        font: {
-                            size: 13,
-                            weight: '600'
-                        },
-                        color: '#4b5563'
-                    }
+                    ticks: { stepSize: 1, font: { size: 11 } },
+                    grid: { color: '#e2e8f0' },
+                    angleLines: { color: '#e2e8f0' },
+                    pointLabels: { font: { size: 13, weight: '600' }, color: '#4b5563' }
                 }
             },
             plugins: {
                 legend: {
                     position: 'top',
-                    labels: {
-                        padding: 15,
-                        boxWidth: 12,
-                        font: { size: 12 }
-                    }
+                    labels: { padding: 15, boxWidth: 12, font: { size: 12 } }
                 },
                 tooltip: {
-                    callbacks: {
-                        label: (ctx) => `${ctx.raw.toFixed(2)}`
-                    }
+                    callbacks: { label: (ctx) => `${ctx.raw.toFixed(2)}` }
                 }
             }
         }
@@ -2137,6 +2108,87 @@ function calculateGroupScoreByName(modelId, groupName) {
     });
 
     return weightSum ? total / weightSum : 0;
+}
+
+// RADAR CHART АНАЛИЗА (обновляется вместе со слайдерами чувствительности)
+
+let analysisRadarChartInstance = null;
+
+async function renderAnalysisRadarChart(sensitivityResults) {
+    const canvas = document.getElementById('analysisRadarChart');
+    if (!canvas) return;
+
+    if (!sensitivityResults || sensitivityResults.length === 0) {
+        if (analysisRadarChartInstance) analysisRadarChartInstance.destroy();
+        return;
+    }
+
+    // Динамические группы из текущих критериев
+    const labels = [];
+    const seen = new Set();
+    criteria.forEach(c => {
+        if (c.group && !seen.has(c.group)) {
+            seen.add(c.group);
+            labels.push(c.group);
+        }
+    });
+
+    if (labels.length === 0) return;
+
+    const chartColors = [
+        '#8b5cf6', '#ec4899', '#14b8a6', '#f59e0b', '#3b82f6'
+    ];
+
+    const datasets = sensitivityResults.slice(0, 5).map((result, index) => {
+        const modelId = result.model?.id || result.model_id;
+        const modelName = result.model_name || result.model?.name;
+
+        return {
+            label: modelName,
+            data: labels.map(groupName => calculateGroupScoreByName(modelId, groupName)),
+            fill: true,
+            backgroundColor: chartColors[index % chartColors.length] + '33',
+            borderColor: chartColors[index % chartColors.length],
+            borderWidth: 3,
+            pointBackgroundColor: chartColors[index % chartColors.length],
+            pointBorderColor: '#fff',
+            pointHoverBorderColor: '#fff',
+            pointRadius: 5,
+            pointHoverRadius: 7
+        };
+    });
+
+    if (analysisRadarChartInstance) {
+        analysisRadarChartInstance.destroy();
+    }
+
+    analysisRadarChartInstance = new Chart(canvas, {
+        type: 'radar',
+        data: { labels, datasets },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            scales: {
+                r: {
+                    min: 0,
+                    max: 5,
+                    ticks: { stepSize: 1, font: { size: 11 } },
+                    grid: { color: '#e2e8f0' },
+                    angleLines: { color: '#e2e8f0' },
+                    pointLabels: { font: { size: 13, weight: '600' }, color: '#4b5563' }
+                }
+            },
+            plugins: {
+                legend: {
+                    position: 'top',
+                    labels: { padding: 15, boxWidth: 12, font: { size: 12 } }
+                },
+                tooltip: {
+                    callbacks: { label: (ctx) => `${ctx.raw.toFixed(2)}` }
+                }
+            }
+        }
+    });
 }
 
 // ОТОБРАЖЕНИЕ АНАЛИЗА НА СТРАНИЦЕ

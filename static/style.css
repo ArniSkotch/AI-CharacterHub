@@ -1266,6 +1266,35 @@ body.booting .main-wrapper {
     min-height: 240px;
 }
 
+/* ===== ANALYSIS RADAR (compact) ===== */
+.analysis-radar-block {
+    max-width: 480px;
+    margin-left: auto;
+    margin-right: auto;
+    width: 100%;
+}
+
+.analysis-radar-block .radar-container canvas {
+    max-height: 280px !important;
+}
+
+/* ===== CRITERION CONTEXT MENU ===== */
+#criterionContextMenu {
+    position: fixed;
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-pop);
+    padding: 6px 0;
+    z-index: 5000;
+    display: none;
+    min-width: 160px;
+    animation: fadeUp 0.15s ease-out;
+}
+#criterionContextMenu.visible {
+    display: block;
+}
+
 /* ===== ANALYSIS ===== */
 
 .report-actions {
