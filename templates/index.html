@@ -5,24 +5,18 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <title>Projects</title>
-
-    <!--вроде можно перенести ссылку в статикс-->
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-
 </head>
-
 
 <body class="booting">
 <!-- TOP BAR -->
 <div class="topbar">
     <div class="menu-button" id="menuButton">☰</div>
-    <!-- <img src="{{ url_for('static', filename='logo.png') }}" class="logo" alt="logo"> -->
-
     <div class="brand">
         <div class="brand-title">Оценка ИИ</div>
         <div class="brand-subtitle">личный проект</div>
     </div>
-    <div class = "brand">
+    <div class="brand">
         <div class="brand-title">Никита Кузьмичев</div>
         <div class="brand-title">и Тамэрлан Исхаков</div>
     </div>
@@ -33,11 +27,7 @@
     <div class="sidebar">
         <h3>Проекты</h3>
         <button id="addProjectBtn">+ Добавить проект</button>
-        <div id="projectList">
-            <div class="project-item">CV Quality Test</div>
-            <div class="project-item">NLP Benchmark</div>
-            <div class="project-item">Metal Defect Models</div>
-        </div>
+        <div id="projectList"></div>
     </div>
 
     <!-- MAIN -->
@@ -53,120 +43,72 @@
         </div>
 
         <div class="main">
-            <!-- ПОДРАЗДЕЛ СПИСКА МОДЕЛЕЙ -->
+            <!-- ПОДРАЗДЕЛ ПРОЕКТА -->
             <div class="page active" id="page-project">
-
-                <!-- EMPTY STATE -->
                 <div id="emptyProjectState" class="empty-project-state">
-                    <img src="{{ url_for('static', filename='diagram.png') }}"
-                         class="empty-project-image"
-                         alt="empty">
-
-                    <div class="empty-project-title">
-                        Для начала работы создайте или выберите проект
-                    </div>
-
-                    <div class="empty-project-subtitle">
-                        После выбора проекта станут доступны критерии,
-                        оценка моделей и аналитика.
-                    </div>
+                    <img src="{{ url_for('static', filename='diagram.png') }}" class="empty-project-image" alt="empty">
+                    <div class="empty-project-title">Для начала работы создайте или выберите проект</div>
+                    <div class="empty-project-subtitle">После выбора проекта станут доступны критерии, оценка моделей и аналитика.</div>
                 </div>
 
-                <!-- ОСНОВНОЙ КОНТЕНТ ПРОЕКТА -->
                 <div id="projectContent" class="hidden">
-
-                    <!-- SECTION 1 -->
                     <div class="section">
                         <div class="section-title">Общие сведения</div>
-
                         <div class="cards">
-                            <div class="card">
-                                <div class="label">Моделей</div>
-                                <div class="value" id="statModels">0</div>
-                            </div>
-
-                            <div class="card">
-                                <div class="label">Критериев</div>
-                                <div class="value" id="statCriteria">8</div>
-                            </div>
-
-                            <div class="card">
-                                <div class="label">Лидер</div>
-                                <div class="value" id="statLeader">-</div>
-                            </div>
+                            <div class="card"><div class="label">Моделей</div><div class="value" id="statModels">0</div></div>
+                            <div class="card"><div class="label">Критериев</div><div class="value" id="statCriteria">8</div></div>
+                            <div class="card"><div class="label">Лидер</div><div class="value" id="statLeader">-</div></div>
                         </div>
                     </div>
-
-                    <!-- SECTION 2 -->
                     <div class="section">
                         <div class="section-title">Текущий рейтинг</div>
-
-                        <!-- ЗАПОЛНЯЕТСЯ ПРИ ВЫБОРЕ ПРОЕКТА -->
                         <div class="rank-list"></div>
                     </div>
-
                     <div class="model-btn-wrapper">
                         <button id="addModelBtn">+ Добавить модель</button>
                     </div>
-
                 </div>
             </div>
 
             <!-- ПОДРАЗДЕЛ КРИТЕРИЕВ -->
             <div class="page" id="page-criteria">
-
                 <div class="section-title">Критерии оценки</div>
-
                 <div id="criteriaContainer"></div>
-
-                <!-- ОБЩАЯ СУММА ВЕСОВ -->
                 <div class="criteria-summary-box">
-                    <div class="criteria-summary-left">
-                        Сумма весов
-                    </div>
-                    <div class="criteria-summary-right" id="criteriaTotal">
-                        0%
-                    </div>
+                    <div class="criteria-summary-left">Сумма весов</div>
+                    <div class="criteria-summary-right" id="criteriaTotal">0%</div>
                 </div>
-
                 <div class="criteria-btn-wrapper">
                     <button id="resetWeightsBtn">Отменить изменения</button>
                     <button id="saveWeightsBtn">Сохранить параметры</button>
-                    <div class="tooltip-icon">
-                        i
-                        <div class="tooltip-text">
-                            После сохранения веса будут автоматически скорректированы так, чтобы их сумма была равна
-                            100%.
-                        </div>
+                    <div class="tooltip-icon">i
+                        <div class="tooltip-text">После сохранения веса будут автоматически скорректированы так, чтобы их сумма была равна 100%.</div>
                     </div>
                 </div>
 
+                <!-- FAB кнопка добавления критерия -->
+                <button class="fab-btn" id="addCriterionBtn" title="Добавить критерий">+</button>
             </div>
 
             <!-- ПОДРАЗДЕЛ ОЦЕНКИ -->
             <div class="page" id="page-scores">
                 <div class="section-title">Ввод оценок</div>
+                <div class="scores-table" id="scoresTable"></div>
 
-                <div class="scores-table" id="scoresTable">
-                    <!-- JS будет генерировать таблицу :) -->
-                </div>
+                <!-- FAB кнопка добавления модели (в оценках) -->
+                <button class="fab-btn" id="addModelScoresBtn" title="Добавить модель">+</button>
             </div>
 
             <!-- ПОДРАЗДЕЛ РЕЗУЛЬТАТОВ -->
             <div class="page" id="page-results">
                 <div class="section-title">Результаты оценки</div>
-
-                <!-- ВЕРХНИЙ РЯД -->
                 <div class="results-top-row">
-                    <!-- БЛОК РОЗЫ ВЕТРОВ -->
                     <div class="results-radar-block">
                         <div class="results-block-header">Сравнение моделей</div>
                         <div class="radar-container">
                             <canvas id="radarChart" width="400" height="400"></canvas>
                         </div>
                     </div>
-
-                    <!-- БЛОК СПИСКА МОДЕЛЕЙ -->
                     <div class="results-rating-block">
                         <div class="results-rating-header">
                             <div class="results-block-header">Итоговый рейтинг</div>
@@ -176,26 +118,14 @@
                                 <button class="order-btn">↓</button>
                             </div>
                         </div>
-
-                        <!-- СПИСОК МОДЕЛЕЙ - ЗАПОЛНЯЕТСЯ ПРИ ВЫБОРЕ ПРОЕКТА -->
                         <div class="results-models-list"></div>
-
                         <button class="show-more-btn">Показать больше</button>
                     </div>
                 </div>
-
-                <!-- РЕКОМЕНДАЦИИ -->
                 <div class="results-recommendations">
-                    <div class="results-recommendations-title">
-                        Рекомендации
-                    </div>
-
-                    <div class="results-recommendations-text">
-                        Для получения рекомендаций начните оценивание
-                    </div>
+                    <div class="results-recommendations-title">Рекомендации</div>
+                    <div class="results-recommendations-text">Для получения рекомендаций начните оценивание</div>
                 </div>
-
-                <!-- СТОЛБЧАТЫЕ ДИАГРАММЫ ПО КАТЕГОРИЯМ -->
                 <div class="results-charts">
                     <div class="chart-block"></div>
                     <div class="chart-block"></div>
@@ -206,9 +136,7 @@
             <!-- ПОДРАЗДЕЛ АНАЛИЗА -->
             <div class="page" id="page-analysis">
                 <div class="section-title">Анализ чувствительности</div>
-                <div class="analysis-description">
-                    Измените веса критериев и посмотрите как меняется рейтинг моделей.
-                </div>
+                <div class="analysis-description">Измените веса критериев и посмотрите как меняется рейтинг моделей.</div>
                 <div class="analysis-top-row">
                     <div class="analysis-sliders-block">
                         <div class="results-block-header">Веса критериев</div>
@@ -223,85 +151,102 @@
                         <div id="sensitivityResults" class="sensitivity-results"></div>
                     </div>
                 </div>
-
                 <div class="results-recommendations" style="margin-top:16px;">
                     <div class="results-recommendations-title">Вывод</div>
-                    <div class="results-recommendations-text" id="sensitivityConclusion">
-                        Передвиньте слайдер чтобы увидеть как меняется результат
-                    </div>
+                    <div class="results-recommendations-text" id="sensitivityConclusion">Передвиньте слайдер чтобы увидеть как меняется результат</div>
                 </div>
                 <div id="sensitivityRecommendations" class="sensitivity-recommendations" style="margin-top:24px;">
                     <div class="results-recommendations-title">Подробные рекомендации</div>
-                    <div id="recContent" class="results-recommendations-text">
-                        Перемещайте ползунки весов критериев чтобы увидеть как меняется результат
-                    </div>
+                    <div id="recContent" class="results-recommendations-text">Перемещайте ползунки весов критериев чтобы увидеть как меняется результат</div>
                 </div>
-
                 <div class="report-actions">
-                    <button class="btn-generate" id="btn-generate" onclick="generateReport(currentProjectId)">
-                        Сгенерировать отчёт (PDF)
-                    </button>
+                    <button class="btn-generate" id="btn-generate" onclick="generateReport(currentProjectId)">Сгенерировать отчёт (PDF)</button>
                 </div>
-
-                <!-- ИНЛАЙН-АНАЛИЗ -->
                 <div id="analysis-content" class="analysis-content hidden"></div>
             </div>
         </div>
     </div>
 </div>
 
-<!-- УНИВЕРСАЛЬНАЯ МОДАЛКА ПРОЕКТОВ -->
+<!-- МОДАЛКА ПРОЕКТОВ -->
 <div id="modalOverlay" class="modal-overlay">
     <div class="modal">
-
         <div class="modal-header">
-            <div class="modal-title" id="projectModalTitle">
-                Создать новый проект
-            </div>
-
+            <div class="modal-title" id="projectModalTitle">Создать новый проект</div>
             <div class="modal-close" id="modalClose">✕</div>
         </div>
-
-        <!-- ТЕКСТ ДЛЯ DELETE -->
-        <div class="modal-description hidden" id="projectModalDescription">
-            Вы уверены?
-        </div>
-
-        <!-- INPUT FIELD -->
+        <div class="modal-description hidden" id="projectModalDescription">Вы уверены?</div>
         <div class="project-input-wrapper">
-            <input
-                    id="projectInput"
-                    class="modal-input"
-                    placeholder="Название проекта"
-            >
+            <input id="projectInput" class="modal-input" placeholder="Название проекта">
             <div class="tooltip-text error-tooltip">Проект с таким названием уже существует</div>
         </div>
-
         <div class="modal-footer">
-            <button id="createProjectBtn" class="modal-create-btn">
-                Создать проект
-            </button>
+            <button id="createProjectBtn" class="modal-create-btn">Создать проект</button>
         </div>
     </div>
 </div>
 
-<!-- МОДАЛКА ДЛЯ ДОБАВЛЕНИЯ НОВОЙ МОДЕЛИ -->
+<!-- МОДАЛКА ДОБАВЛЕНИЯ / РЕДАКТИРОВАНИЯ МОДЕЛИ -->
 <div id="modelModalOverlay" class="modal-overlay">
     <div class="modal">
         <div class="modal-header">
             <div class="modal-title" id="modelModalTitle">Добавить модель</div>
             <div class="modal-close" id="modelModalClose">✕</div>
         </div>
-
         <div class="modal-description hidden" id="modelModalDescription"></div>
-
         <div class="input-wrapper">
             <div class="tooltip-text error-tooltip">Модель с таким названием уже существует</div>
             <input id="modelInput" class="modal-input" placeholder="Название модели">
         </div>
-
         <div class="modal-footer">
             <button id="createModelBtn" class="modal-create-btn">Добавить</button>
+        </div>
+    </div>
+</div>
+
+<!-- МОДАЛКА ДОБАВЛЕНИЯ / РЕДАКТИРОВАНИЯ КРИТЕРИЯ -->
+<div id="criterionModalOverlay" class="modal-overlay">
+    <div class="modal">
+        <div class="modal-header">
+            <div class="modal-title" id="criterionModalTitle">Добавить критерий</div>
+            <div class="modal-close" id="criterionModalClose">✕</div>
+        </div>
+        <div class="modal-description hidden" id="criterionModalDescription"></div>
+
+        <div class="criterion-input-wrapper" style="position:relative;">
+            <input id="criterionNameInput" class="modal-input" placeholder="Название критерия" autocomplete="off">
+            <div id="criterionAutocomplete" class="criterion-autocomplete hidden"></div>
+            <div class="tooltip-text error-tooltip" id="criterionNameError" style="display:none;">Критерий с таким названием уже существует</div>
+        </div>
+
+        <div style="margin-top:12px; padding: 0 4px;">
+            <label style="font-size:13px; color:var(--text-secondary); display:block; margin-bottom:6px;">Группа</label>
+            <div style="position:relative; margin-bottom:12px;">
+                <input id="criterionGroupInput" class="modal-input" placeholder="Например: Точность" autocomplete="off">
+            </div>
+
+            <label style="font-size:13px; color:var(--text-secondary); display:block; margin-bottom:6px;">
+                Вес: <span id="criterionWeightLabel">5</span>%
+            </label>
+            <input type="range" id="criterionWeightSlider" min="0" max="100" value="5" class="criteria-slider" style="width:100%;">
+        </div>
+
+        <div class="modal-footer">
+            <button id="saveCriterionBtn" class="modal-create-btn">Добавить</button>
+        </div>
+    </div>
+</div>
+
+<!-- МОДАЛКА УДАЛЕНИЯ КРИТЕРИЯ -->
+<div id="criterionDeleteModal" class="modal-overlay">
+    <div class="modal">
+        <div class="modal-header">
+            <div class="modal-title">Удаление критерия</div>
+            <div class="modal-close" id="criterionDeleteClose">✕</div>
+        </div>
+        <div class="modal-description" id="criterionDeleteDesc" style="padding:12px 0;"></div>
+        <div class="modal-footer">
+            <button id="criterionDeleteConfirm" class="modal-create-btn danger">Удалить</button>
         </div>
     </div>
 </div>

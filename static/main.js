@@ -1198,8 +1198,14 @@ tabs.forEach(tab => {
 });
 
 // ЗАПОЛНЕНИЕ СПИСКА ВКЛАДКИ КРИТЕРИЕВ
+// cache for full criterion objects (for edit modal)
+const _criteriaDataCache = {};
+
 function renderCriteria(criteriaFromApi) {
     criteriaContainer.innerHTML = "";
+
+    // update cache
+    criteriaFromApi.forEach(c => { _criteriaDataCache[c.id] = c; });
 
     const groups = {};
 
@@ -1227,6 +1233,7 @@ function renderCriteria(criteriaFromApi) {
                             value="${Math.round(c.weight * 100)}"
                             class="criteria-slider">
                         <div class="criteria-value">${Math.round(c.weight * 100)}%</div>
+                        <span class="criterion-ellipsis" data-id="${c.id}">&#8942;</span>
                     </div>
                 </div>
             `;
@@ -1237,6 +1244,16 @@ function renderCriteria(criteriaFromApi) {
         group.innerHTML = html;
 
         criteriaContainer.appendChild(group);
+    });
+
+    // attach ellipsis listeners
+    criteriaContainer.querySelectorAll('.criterion-ellipsis').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const id = btn.dataset.id;
+            const data = _criteriaDataCache[id];
+            showCriterionCtxMenu(id, data, btn);
+        });
     });
 
     attachCriteriaListeners();
@@ -1590,7 +1607,8 @@ function createScoresTable() {
     models.forEach(model => {
         headerHTML += `
             <div class="scores-cell model-header">
-                ${model.name}
+                <span class="model-header-name">${model.name}</span>
+                <span class="model-ellipsis scores-model-ellipsis" data-id="${model.id}">&#8942;</span>
             </div>
         `;
     });
@@ -1667,6 +1685,15 @@ function createScoresTable() {
 
     // заново навесить события
     initRatingDots();
+
+    // ellipsis на заголовках моделей в таблице оценок
+    document.querySelectorAll('.scores-model-ellipsis').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const mid = btn.dataset.id;
+            showModelCtxMenu(mid, btn);
+        });
+    });
 }
 
 function updateRankList() {
@@ -2246,3 +2273,276 @@ document.addEventListener("DOMContentLoaded", async () => {
     setSidebarState(sidebarOpen);
     document.body.classList.remove("booting");
 });
+// ═══════════════════════════════════════════════════════════════════
+// КРИТЕРИИ: ДОБАВЛЕНИЕ / РЕДАКТИРОВАНИЕ / УДАЛЕНИЕ
+// ═══════════════════════════════════════════════════════════════════
+
+let criterionModalMode = 'create'; // create | edit
+let editingCriterionId = null;
+
+const criterionModalOverlay = document.getElementById('criterionModalOverlay');
+const criterionModalTitle   = document.getElementById('criterionModalTitle');
+const criterionModalClose   = document.getElementById('criterionModalClose');
+const criterionNameInput    = document.getElementById('criterionNameInput');
+const criterionGroupInput   = document.getElementById('criterionGroupInput');
+const criterionWeightSlider = document.getElementById('criterionWeightSlider');
+const criterionWeightLabel  = document.getElementById('criterionWeightLabel');
+const saveCriterionBtn      = document.getElementById('saveCriterionBtn');
+const criterionAutocomplete = document.getElementById('criterionAutocomplete');
+const criterionNameError    = document.getElementById('criterionNameError');
+
+const criterionDeleteModal   = document.getElementById('criterionDeleteModal');
+const criterionDeleteClose   = document.getElementById('criterionDeleteClose');
+const criterionDeleteDesc    = document.getElementById('criterionDeleteDesc');
+const criterionDeleteConfirm = document.getElementById('criterionDeleteConfirm');
+let deletingCriterionId = null;
+
+// Открыть FAB-кнопку критериев
+document.getElementById('addCriterionBtn').onclick = () => openCriterionModal('create');
+
+// Открыть ту же модалку со страницы оценок (добавить модель)
+document.getElementById('addModelScoresBtn').onclick = () => {
+    // reuse model modal
+    modelModalMode = 'create';
+    editingModelId = null;
+    document.getElementById('modelModalTitle').textContent = 'Добавить модель';
+    document.getElementById('modelModalDescription').classList.add('hidden');
+    document.getElementById('modelModalDescription').innerHTML = ' ';
+    document.getElementById('modelInput').classList.remove('hidden');
+    document.getElementById('modelInput').addEventListener('input', validateModelInput);
+    document.getElementById('createModelBtn').textContent = 'Добавить';
+    document.getElementById('createModelBtn').classList.remove('danger', 'holding');
+    document.getElementById('createModelBtn').style.setProperty('--hold-progress', '0%');
+    document.getElementById('modelModalOverlay').classList.add('active');
+    document.getElementById('modelInput').value = '';
+    document.getElementById('modelInput').focus();
+    validateModelInput();
+};
+
+function openCriterionModal(mode, criterionData = null) {
+    criterionModalMode = mode;
+    editingCriterionId = criterionData ? criterionData.id : null;
+
+    criterionNameInput.value  = criterionData ? criterionData.name  : '';
+    criterionGroupInput.value = criterionData ? criterionData.group : '';
+    const weightPct = criterionData ? Math.round(criterionData.weight * 100) : 5;
+    criterionWeightSlider.value = weightPct;
+    criterionWeightLabel.textContent = weightPct;
+
+    criterionModalTitle.textContent = mode === 'create' ? 'Добавить критерий' : 'Редактировать критерий';
+    saveCriterionBtn.textContent    = mode === 'create' ? 'Добавить' : 'Сохранить';
+
+    criterionNameError.style.display = 'none';
+    criterionAutocomplete.classList.add('hidden');
+    criterionAutocomplete.innerHTML = '';
+
+    criterionModalOverlay.classList.add('active');
+    criterionNameInput.focus();
+}
+
+criterionWeightSlider.addEventListener('input', () => {
+    criterionWeightLabel.textContent = criterionWeightSlider.value;
+});
+
+criterionModalClose.onclick = () => {
+    criterionModalOverlay.classList.remove('active');
+    criterionAutocomplete.classList.add('hidden');
+};
+
+criterionModalOverlay.onclick = (e) => {
+    if (e.target === criterionModalOverlay) {
+        criterionModalOverlay.classList.remove('active');
+        criterionAutocomplete.classList.add('hidden');
+    }
+};
+
+// Автодополнение названий критериев
+let hintDebounceTimer = null;
+criterionNameInput.addEventListener('input', () => {
+    clearTimeout(hintDebounceTimer);
+    hintDebounceTimer = setTimeout(() => fetchCriterionHints(criterionNameInput.value), 200);
+});
+
+async function fetchCriterionHints(query) {
+    if (!query.trim()) {
+        criterionAutocomplete.classList.add('hidden');
+        return;
+    }
+    try {
+        const res = await fetch(`/api/criteria-hints?q=${encodeURIComponent(query)}`);
+        const hints = await res.json();
+        renderHints(hints);
+    } catch {}
+}
+
+function renderHints(hints) {
+    criterionAutocomplete.innerHTML = '';
+    if (!hints.length) {
+        criterionAutocomplete.classList.add('hidden');
+        return;
+    }
+    hints.forEach(h => {
+        const item = document.createElement('div');
+        item.className = 'autocomplete-item';
+        item.textContent = h;
+        item.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            criterionNameInput.value = h;
+            criterionAutocomplete.classList.add('hidden');
+        });
+        criterionAutocomplete.appendChild(item);
+    });
+    criterionAutocomplete.classList.remove('hidden');
+}
+
+criterionNameInput.addEventListener('blur', () => {
+    setTimeout(() => criterionAutocomplete.classList.add('hidden'), 150);
+});
+
+// ── Autocomplete для поля группы ──────────────────────────────────
+const groupAutocomplete = document.createElement('div');
+groupAutocomplete.id = 'groupAutocomplete';
+groupAutocomplete.className = 'criterion-autocomplete hidden';
+criterionGroupInput.parentNode.style.position = 'relative';
+criterionGroupInput.insertAdjacentElement('afterend', groupAutocomplete);
+
+let groupHintTimer = null;
+criterionGroupInput.addEventListener('input', () => {
+    clearTimeout(groupHintTimer);
+    groupHintTimer = setTimeout(() => fetchGroupHints(criterionGroupInput.value), 180);
+});
+criterionGroupInput.addEventListener('focus', () => {
+    fetchGroupHints(criterionGroupInput.value);
+});
+criterionGroupInput.addEventListener('blur', () => {
+    setTimeout(() => groupAutocomplete.classList.add('hidden'), 150);
+});
+
+async function fetchGroupHints(query) {
+    try {
+        const url = `/api/group-hints${query.trim() ? '?q=' + encodeURIComponent(query) : ''}`;
+        const res = await fetch(url);
+        const hints = await res.json();
+        renderGroupHints(hints);
+    } catch {}
+}
+
+function renderGroupHints(hints) {
+    groupAutocomplete.innerHTML = '';
+    if (!hints.length) { groupAutocomplete.classList.add('hidden'); return; }
+    hints.forEach(h => {
+        const item = document.createElement('div');
+        item.className = 'autocomplete-item';
+        item.textContent = h;
+        item.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            criterionGroupInput.value = h;
+            groupAutocomplete.classList.add('hidden');
+        });
+        groupAutocomplete.appendChild(item);
+    });
+    groupAutocomplete.classList.remove('hidden');
+}
+
+// Сохранение критерия
+saveCriterionBtn.onclick = async () => {
+    const name   = criterionNameInput.value.trim();
+    const group  = criterionGroupInput.value.trim() || 'Без группы';
+    const weight = parseInt(criterionWeightSlider.value);
+
+    if (!name || !currentProjectId) return;
+
+    try {
+        let res;
+        if (criterionModalMode === 'create') {
+            res = await fetch(`/api/projects/${currentProjectId}/criteria/add`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name, group, weight })
+            });
+        } else {
+            res = await fetch(`/api/projects/${currentProjectId}/criteria/${editingCriterionId}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name, group, weight })
+            });
+        }
+
+        if (res.status === 409) {
+            criterionNameError.style.display = 'block';
+            criterionNameInput.classList.add('input-error');
+            return;
+        }
+        if (!res.ok) {
+            const err = await res.json();
+            alert(err.error || 'Ошибка');
+            return;
+        }
+
+        criterionNameError.style.display = 'none';
+        criterionNameInput.classList.remove('input-error');
+        criterionModalOverlay.classList.remove('active');
+
+        // перезагружаем данные проекта
+        const activeEl = document.querySelector(`.project-item[data-id="${currentProjectId}"]`);
+        await openProject(currentProjectId, activeEl);
+
+    } catch (e) {
+        console.error(e);
+    }
+};
+
+// Показать диалог удаления критерия
+function openDeleteCriterionModal(criterionId, criterionName) {
+    deletingCriterionId = criterionId;
+    criterionDeleteDesc.textContent = `Вы уверены, что хотите удалить критерий «${criterionName}»? Все связанные оценки будут удалены.`;
+    criterionDeleteModal.classList.add('active');
+}
+
+criterionDeleteClose.onclick = () => criterionDeleteModal.classList.remove('active');
+criterionDeleteModal.onclick = (e) => {
+    if (e.target === criterionDeleteModal) criterionDeleteModal.classList.remove('active');
+};
+
+criterionDeleteConfirm.onclick = async () => {
+    if (!deletingCriterionId || !currentProjectId) return;
+    await fetch(`/api/projects/${currentProjectId}/criteria/${deletingCriterionId}`, { method: 'DELETE' });
+    criterionDeleteModal.classList.remove('active');
+    const activeEl = document.querySelector(`.project-item[data-id="${currentProjectId}"]`);
+    await openProject(currentProjectId, activeEl);
+};
+
+// Контекстное меню критерия (встроено в renderCriteria через data-attributes)
+const criterionCtxMenu = document.createElement('div');
+criterionCtxMenu.id = 'criterionContextMenu';
+criterionCtxMenu.innerHTML = `
+    <div class="context-menu-item" id="ctxCriterionEdit">Редактировать</div>
+    <div class="context-menu-item delete" id="ctxCriterionDelete">Удалить</div>
+`;
+document.body.appendChild(criterionCtxMenu);
+
+let ctxCriterionTargetId   = null;
+let ctxCriterionTargetData = null;
+
+function showCriterionCtxMenu(id, data, btn) {
+    ctxCriterionTargetId   = id;
+    ctxCriterionTargetData = data;
+    const rect = btn.getBoundingClientRect();
+    criterionCtxMenu.style.top  = `${rect.bottom + 5}px`;
+    criterionCtxMenu.style.left = `${Math.min(rect.left - 140, window.innerWidth - 170)}px`;
+    criterionCtxMenu.classList.add('visible');
+}
+
+document.addEventListener('click', (e) => {
+    if (!criterionCtxMenu.contains(e.target)) criterionCtxMenu.classList.remove('visible');
+});
+
+document.getElementById('ctxCriterionEdit').onclick = () => {
+    criterionCtxMenu.classList.remove('visible');
+    if (ctxCriterionTargetData) openCriterionModal('edit', ctxCriterionTargetData);
+};
+
+document.getElementById('ctxCriterionDelete').onclick = () => {
+    criterionCtxMenu.classList.remove('visible');
+    if (ctxCriterionTargetData) openDeleteCriterionModal(ctxCriterionTargetId, ctxCriterionTargetData.name);
+};

@@ -1,7 +1,7 @@
 import json
+import os
 
 from flask import Flask, render_template, request, jsonify, session, redirect, url_for, flash, send_file, abort, after_this_request
-import os
 from models import db, Project, AIModel, Criterion, Score
 from calculator import calculate_scores
 from report_maker import generate_report
@@ -18,9 +18,60 @@ db.init_app(app)
 with app.app_context():
     db.create_all()
 
+_BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+HINTS_FILE        = os.path.join(_BASE_DIR, 'criteria_hints.txt')
+GROUP_HINTS_FILE  = os.path.join(_BASE_DIR, 'group_hints.txt')
+
+# начальные группы, записываются при первом старте
+_DEFAULT_GROUPS = ['Точность', 'Устойчивость', 'Контекст', 'Производительность', 'Безопасность', 'Без группы']
+
+
+def _load_hints(path):
+    if not os.path.exists(path):
+        return []
+    with open(path, encoding='utf-8') as f:
+        return [line.strip() for line in f if line.strip()]
+
+
+def _save_hint(name: str, path: str):
+    hints = _load_hints(path)
+    if name not in hints:
+        with open(path, 'a', encoding='utf-8') as f:
+            f.write(name + '\n')
+
+
+def _ensure_group_hints():
+    """Записать дефолтные группы, если файл ещё не существует."""
+    if not os.path.exists(GROUP_HINTS_FILE):
+        with open(GROUP_HINTS_FILE, 'w', encoding='utf-8') as f:
+            f.write('\n'.join(_DEFAULT_GROUPS) + '\n')
+
+_ensure_group_hints()
+
+
 @app.get('/')
 def index():
     return render_template('index.html')
+
+# ── ПОДСКАЗКИ ДЛЯ КРИТЕРИЕВ ───────────────────────────────────────────────────
+
+@app.get('/api/criteria-hints')
+def get_criteria_hints():
+    q = request.args.get('q', '').strip().lower()
+    hints = _load_hints(HINTS_FILE)
+    if q:
+        hints = [h for h in hints if q in h.lower()]
+    return jsonify(hints[:20])
+
+@app.get('/api/group-hints')
+def get_group_hints():
+    q = request.args.get('q', '').strip().lower()
+    hints = _load_hints(GROUP_HINTS_FILE)
+    if q:
+        hints = [h for h in hints if q in h.lower()]
+    return jsonify(hints[:20])
+
+# ── ПРОЕКТЫ ───────────────────────────────────────────────────────────────────
 
 @app.get('/api/projects')
 def get_projects():
@@ -36,16 +87,6 @@ def create_project():
 
     p = Project(name=name)
     db.session.add(p)
-    db.session.flush()
-
-    for c in DEFAULT_CRITERIA:
-        db.session.add(Criterion(
-            name=c['name'],
-            group=c['group'],
-            weight=c['weight'],
-            project_id=p.id
-        ))
-
     db.session.commit()
     return jsonify({'id': p.id, 'name': p.name}), 201
 
@@ -67,6 +108,8 @@ def update_project(id):
     db.session.commit()
     return jsonify({'id': p.id, 'name': p.name})
 
+# ── МОДЕЛИ ─────────────────────────────────────────────────────────────────────
+
 @app.get('/api/projects/<int:id>/models')
 def get_models(id):
     models = AIModel.query.filter_by(project_id=id).all()
@@ -80,18 +123,18 @@ def create_model(id):
     if not name:
         return jsonify({'error': 'Название не может быть пустым'}), 400
 
+    # проверка дубликата
+    existing = AIModel.query.filter_by(project_id=id, name=name).first()
+    if existing:
+        return jsonify({'error': 'Модель с таким названием уже существует'}), 409
+
     m = AIModel(name=name, project_id=id)
     db.session.add(m)
     db.session.flush()
 
     criteria = Criterion.query.filter_by(project_id=id, enabled=True).all()
-
     for c in criteria:
-        db.session.add(Score(
-            model_id=m.id,
-            criterion_id=c.id,
-            value=3
-        ))
+        db.session.add(Score(model_id=m.id, criterion_id=c.id, value=3))
 
     db.session.commit()
     return jsonify({'id': m.id, 'name': m.name}), 201
@@ -113,6 +156,8 @@ def delete_model(id, mid):
     db.session.delete(m)
     db.session.commit()
     return jsonify({'ok': True})
+
+# ── КРИТЕРИИ ───────────────────────────────────────────────────────────────────
 
 @app.get('/api/projects/<int:id>/criteria')
 def get_criteria(id):
@@ -136,12 +181,77 @@ def save_criteria(id):
     db.session.commit()
     return jsonify({'ok': True})
 
+@app.post('/api/projects/<int:id>/criteria/add')
+def add_criterion(id):
+    """Добавить новый критерий в проект."""
+    Project.query.get_or_404(id)
+    data = request.get_json()
+    name = data.get('name', '').strip()
+    group = data.get('group', 'Без группы').strip() or 'Без группы'
+    weight = float(data.get('weight', 5)) / 100  # приходит в процентах
+
+    if not name:
+        return jsonify({'error': 'Название не может быть пустым'}), 400
+
+    # дубликат внутри проекта
+    exists = Criterion.query.filter_by(project_id=id, name=name).first()
+    if exists:
+        return jsonify({'error': 'Критерий с таким названием уже существует в этом проекте'}), 409
+
+    c = Criterion(name=name, group=group, weight=weight, project_id=id, enabled=True)
+    db.session.add(c)
+    db.session.flush()
+
+    # добавить Score для всех текущих моделей
+    for m in AIModel.query.filter_by(project_id=id).all():
+        db.session.add(Score(model_id=m.id, criterion_id=c.id, value=3))
+
+    db.session.commit()
+
+    # сохраняем подсказку
+    _save_hint(name, HINTS_FILE)
+    _save_hint(group, GROUP_HINTS_FILE)
+
+    return jsonify({'id': c.id, 'name': c.name, 'group': c.group, 'weight': c.weight, 'enabled': c.enabled}), 201
+
+@app.patch('/api/projects/<int:id>/criteria/<int:cid>')
+def update_criterion(id, cid):
+    c = Criterion.query.filter_by(id=cid, project_id=id).first_or_404()
+    data = request.get_json()
+
+    new_name = data.get('name', c.name).strip()
+    new_group = data.get('group', c.group).strip() or c.group
+    new_weight = data.get('weight', None)
+
+    # дубликат (кроме самого себя)
+    dup = Criterion.query.filter_by(project_id=id, name=new_name).first()
+    if dup and dup.id != cid:
+        return jsonify({'error': 'Критерий с таким названием уже существует в этом проекте'}), 409
+
+    c.name = new_name
+    c.group = new_group
+    if new_weight is not None:
+        c.weight = float(new_weight) / 100
+
+    db.session.commit()
+    _save_hint(new_name, HINTS_FILE)
+    _save_hint(new_group, GROUP_HINTS_FILE)
+    return jsonify({'id': c.id, 'name': c.name, 'group': c.group, 'weight': c.weight, 'enabled': c.enabled})
+
+@app.delete('/api/projects/<int:id>/criteria/<int:cid>')
+def delete_criterion(id, cid):
+    c = Criterion.query.filter_by(id=cid, project_id=id).first_or_404()
+    db.session.delete(c)
+    db.session.commit()
+    return jsonify({'ok': True})
+
+# ── ОЦЕНКИ ─────────────────────────────────────────────────────────────────────
+
 @app.get('/api/projects/<int:id>/scores')
 def get_scores(id):
     models = AIModel.query.filter_by(project_id=id).all()
     criteria = Criterion.query.filter_by(project_id=id, enabled=True).all()
 
-    # {model_id: {criterion_id: value}}
     result = {}
     for m in models:
         result[m.id] = {}
@@ -174,6 +284,7 @@ def save_scores(id):
     db.session.commit()
     return jsonify({'ok': True})
 
+# ── РЕЗУЛЬТАТЫ ─────────────────────────────────────────────────────────────────
 
 @app.get('/api/projects/<int:id>/results')
 def get_results(id):
@@ -181,14 +292,13 @@ def get_results(id):
     results = calculate_scores(p)
     p.last_result_at = datetime.datetime.now()
 
-    # Сохраняем результаты для отчёта
     prev = [
         {r['model']['name']: [r['S_k'], r['K_k'], r['model']['id']]}
         for r in results
     ]
     if p.prev_result:
         p.prev_prev_result = p.prev_result
-    p.prev_result = prev          # db.JSON сериализует сам, json.dumps не нужен
+    p.prev_result = prev
 
     db.session.commit()
     return jsonify(results)
@@ -196,7 +306,6 @@ def get_results(id):
 @app.get('/api/projects/<int:id>/sensitivity')
 def get_sensitivity(id):
     p = Project.query.get_or_404(id)
-    # веса приходят как query params: ?w_1=0.3&w_2=0.2
     weight_override = {}
     for key, val in request.args.items():
         if key.startswith('w_'):
@@ -205,39 +314,6 @@ def get_sensitivity(id):
 
     results = calculate_scores(p, weight_override=weight_override)
     return jsonify(results)
-
-DEFAULT_CRITERIA = [
-    {'name': 'Точность ответа',              'group': 'Точность',      'weight': 0.10},
-    {'name': 'Логичность и структура',       'group': 'Точность',      'weight': 0.10},
-    {'name': 'Глубина и полнота ответа',     'group': 'Точность',      'weight': 0.10},
-    {'name': 'Гибкость в интерпретации',     'group': 'Точность',      'weight': 0.10},
-    {'name': 'Адекватность формата',         'group': 'Точность',      'weight': 0.05},
-    {'name': 'Устойчивость к нагрузке',      'group': 'Устойчивость',  'weight': 0.10},
-    {'name': 'Обработка сложных запросов',   'group': 'Устойчивость',  'weight': 0.10},
-    {'name': 'Восприятие неоднозначности',   'group': 'Устойчивость',  'weight': 0.05},
-    {'name': 'Анализ и синтез информации',   'group': 'Устойчивость',  'weight': 0.10},
-    {'name': 'Контекстная согласованность',  'group': 'Контекст',      'weight': 0.10},
-    {'name': 'Адаптивность к стилю',         'group': 'Контекст',      'weight': 0.05},
-    {'name': 'Чувствительность к контексту', 'group': 'Контекст',      'weight': 0.05},
-]
-
-
-@app.post('/api/projects/<int:id>/save_prev_result')
-def save_res(id,res):
-    p= Project.query.get_or_404(id)
-    newjson = []
-    for i in res:
-        s_k = i.S_k
-        m_name = i.model.name
-        k_k = i.K_k
-        model_id = i.model.id
-        newjson.append({m_name : [s_k,k_k,model_id]})
-    prev_res = p.prev_result
-    if prev_res:
-        p.prev_prev_result = prev_res
-    p.prev_result = json.dumps(newjson)
-    db.session.commit()
-
 
 @app.get('/api/projects/<int:id>/analysis')
 def get_analysis(id):
@@ -273,9 +349,6 @@ def report_generation(id):
         if os.path.exists(temp_path):
             os.remove(temp_path)
         abort(500, f'Ошибка генерации отчёта: {e}')
-
-
-
 
 @app.get('/api/projects/<int:id>/top-models')
 def get_top_models(id):
