@@ -137,7 +137,7 @@ def interpret_score(ratio):
 
 
 # ── Функция для сбора данных анализа (используется и PDF, и JSON-эндпоинтом) ──
-def collect_analysis_data(project_id):
+def collect_analysis_data(project_id, model_ids=None):
     res = get_results(project_id)
     if not res:
         return None
@@ -156,7 +156,7 @@ def collect_analysis_data(project_id):
     groups   = get_groups_analysis(best_model_id)
     total_criteria_count = len(criteria["high"]) + len(criteria["mid"]) + len(criteria["low"])
 
-    radar_data = _collect_radar_data(project_id)
+    radar_data = _collect_radar_data(project_id, model_ids=model_ids)
 
     return {
         "generation_date":        datetime.now().strftime("%d.%m.%Y %H:%M"),
@@ -175,7 +175,8 @@ def collect_analysis_data(project_id):
 
 # ── Построение PDF ────────────────────────────────────────────────────────────
 # ── Данные для розы ветров ───────────────────────────────────────
-def _collect_radar_data(project_id):
+def _collect_radar_data(project_id, model_ids=None):
+    """Если model_ids передан — берём только эти модели в указанном порядке."""
     p = Project.query.get(project_id)
     if not p:
         return {}
@@ -186,8 +187,14 @@ def _collect_radar_data(project_id):
         if c.group not in seen:
             seen.add(c.group)
             groups_ordered.append(c.group)
+    # Получаем модели: если список ID задан — берём только их в нужном порядке
+    if model_ids:
+        id_to_model = {m.id: m for m in AIModel.query.filter_by(project_id=project_id).all()}
+        all_models = [id_to_model[mid] for mid in model_ids if mid in id_to_model]
+    else:
+        all_models = AIModel.query.filter_by(project_id=project_id).all()
     result = {}
-    for model in AIModel.query.filter_by(project_id=project_id).all():
+    for model in all_models:
         group_scores = {}
         for g in groups_ordered:
             crits_in_group = [c for c in criteria_all if c.group == g]
@@ -371,8 +378,8 @@ def _build_story(data):
     return story
 
 
-def generate_report(project_id, output_pdf_path):
-    data = collect_analysis_data(project_id)
+def generate_report(project_id, output_pdf_path, model_ids=None):
+    data = collect_analysis_data(project_id, model_ids=model_ids)
     if not data:
         raise ValueError("Нет данных для отчёта. Сначала выполните расчёт результатов.")
 

@@ -770,6 +770,7 @@ async function openProject(id, el) {
     currentSensitivityWeights = {};
     sensitivityOriginalWeights = {};
     originalRanking = [];
+    excludedModelIds.clear(); // сбрасываем вычеркнутые модели
     // Очищаем кэш оценок, чтобы данные старого проекта не попадали в графики нового
     Object.keys(ratings).forEach(k => delete ratings[k]);
 
@@ -1747,9 +1748,12 @@ function renderResults() {
     visibleModels.forEach((m, index) => {
         const tagText = extractTagName(m.label);
         const tagStyle = getTagStyle(m.label);
+        const isExcluded = excludedModelIds.has(m.id);
 
         const item = document.createElement("div");
-        item.className = "rank-item";
+        item.className = "rank-item" + (isExcluded ? " excluded" : "");
+        item.dataset.modelId = m.id;
+        item.title = isExcluded ? "Нажмите чтобы включить в анализ" : "Нажмите чтобы исключить из анализа";
 
         item.innerHTML = `
             <div class="rank-number">${index + 1}</div>
@@ -1769,6 +1773,17 @@ function renderResults() {
                 ${tagText}
             </div>
         `;
+
+        // Клик по строке — вычеркнуть/включить модель
+        item.addEventListener("click", () => {
+            if (excludedModelIds.has(m.id)) {
+                excludedModelIds.delete(m.id);
+            } else {
+                excludedModelIds.add(m.id);
+            }
+            renderResults();
+            renderRadarChart();
+        });
 
         list.appendChild(item);
     });
@@ -1810,6 +1825,7 @@ async function refreshResults() {
 
 let sortMode = "rating"; // rating | name
 let sortOrder = "desc";   // asc | desc
+const excludedModelIds = new Set(); // ID моделей, вычеркнутых пользователем
 
 function sortResults() {
     models.sort((a, b) => {
@@ -1836,6 +1852,7 @@ function sortResults() {
 
     renderResults();
     updateShowMoreState();
+    renderRadarChart(); // обновляем розу ветров под новый порядок
 }
 
 const sortBtns = document.querySelectorAll(".sort-btn");
@@ -2021,10 +2038,10 @@ async function renderRadarChart() {
     const canvas = document.getElementById('radarChart');
     if (!canvas) return;
 
-    const res = await fetch(`/api/projects/${currentProjectId}/results`);
-    const results = await res.json();
+    // Берём модели в текущем порядке сортировки, исключая вычеркнутые
+    const visibleSorted = models.filter(m => !excludedModelIds.has(m.id));
 
-    if (results.length === 0) {
+    if (visibleSorted.length === 0) {
         if (radarChartInstance) radarChartInstance.destroy();
         return;
     }
@@ -2045,12 +2062,11 @@ async function renderRadarChart() {
         '#8b5cf6', '#ec4899', '#14b8a6', '#f59e0b', '#3b82f6'
     ];
 
-    const datasets = results.slice(0, 5).map((result, index) => {
-        const model = result.model;
+    const datasets = visibleSorted.slice(0, 5).map((m, index) => {
 
         return {
-            label: model.name,
-            data: labels.map(groupName => calculateGroupScoreByName(model.id, groupName)),
+            label: m.name,
+            data: labels.map(groupName => calculateGroupScoreByName(m.id, groupName)),
             fill: true,
             backgroundColor: chartColors[index % chartColors.length] + '33',
             borderColor: chartColors[index % chartColors.length],
@@ -2299,7 +2315,15 @@ async function generateReport(projectId) {
     btn.textContent = 'Генерация...';
 
     try {
-        const response = await fetch(`/api/projects/${projectId}/report`);
+        // Передаём серверу упорядоченные видимые модели (для розы ветров)
+        const visibleIds = models
+            .filter(m => !excludedModelIds.has(m.id))
+            .slice(0, 5)
+            .map(m => m.id)
+            .join(",");
+        const reportUrl = `/api/projects/${projectId}/report` +
+            (visibleIds ? `?model_ids=${visibleIds}` : "");
+        const response = await fetch(reportUrl);
 
         if (!response.ok) {
             const text = await response.text();

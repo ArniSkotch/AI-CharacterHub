@@ -325,11 +325,15 @@ def get_analysis(id):
 
 @app.get('/api/projects/<int:id>/report')
 def report_generation(id):
+    # model_ids — упорядоченные видимые модели, переданные с фронтенда
+    model_ids_raw = request.args.get('model_ids', '')
+    model_ids = [int(x) for x in model_ids_raw.split(',') if x.strip().isdigit()]
+
     fd, temp_path = tempfile.mkstemp(suffix='.pdf')
     os.close(fd)
 
     try:
-        generate_report(id, temp_path)
+        generate_report(id, temp_path, model_ids=model_ids or None)
 
         @after_this_request
         def cleanup(response):

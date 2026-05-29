@@ -1304,6 +1304,30 @@ body.booting .main-wrapper {
     display: block;
 }
 
+/* ===== EXCLUDED (STRIKETHROUGH) MODEL IN RESULTS RATING ===== */
+.rank-item {
+    cursor: pointer;
+    transition: opacity 0.2s, background 0.15s;
+}
+.rank-item:hover {
+    background: var(--purple-ghost);
+    border-radius: var(--radius-md);
+}
+.rank-item.excluded {
+    opacity: 0.38;
+}
+.rank-item.excluded .rank-name,
+.rank-item.excluded .rank-bar-text {
+    text-decoration: line-through;
+    color: var(--text-secondary);
+}
+.rank-item.excluded .rank-bar-fill {
+    background: var(--text-secondary) !important;
+}
+.rank-item.excluded .tag {
+    opacity: 0.5;
+}
+
 /* ===== ANALYSIS ===== */
 
 .report-actions {
