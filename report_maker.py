@@ -198,13 +198,13 @@ def _collect_radar_data(project_id, model_ids=None):
         group_scores = {}
         for g in groups_ordered:
             crits_in_group = [c for c in criteria_all if c.group == g]
-            total, weight_sum = 0.0, 0.0
+            total, count = 0.0, 0
             for c in crits_in_group:
                 s = Score.query.filter_by(model_id=model.id, criterion_id=c.id).first()
                 v = s.value if s else 0
-                total      += v * c.weight
-                weight_sum += c.weight
-            group_scores[g] = round(total / weight_sum, 2) if weight_sum else 0.0
+                total += v
+                count += 1
+            group_scores[g] = round(total / count, 2) if count else 0.0
         result[model.name] = group_scores
     return {"groups": groups_ordered, "models": result}
 

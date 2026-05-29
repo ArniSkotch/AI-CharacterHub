@@ -2133,3 +2133,20 @@ body.booting .main-wrapper {
     color: #27ae60;
     font-weight: 700;
 }
+/* ═══════════════════════════════════════════════════════════════════
+   ГРУППЫ В ТАБЛИЦЕ КОНЕЧНОГО ОЦЕНИВАНИЯ
+   ═══════════════════════════════════════════════════════════════════ */
+.scores-group-header {
+    background: transparent !important;
+    border-bottom: none !important;
+}
+.scores-group-title {
+    padding: 14px 16px 6px !important;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--purple-mid, #8b5cf6);
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    border-bottom: 2px solid var(--purple-pale, #e9d5ff);
+    margin-bottom: 2px;
+}

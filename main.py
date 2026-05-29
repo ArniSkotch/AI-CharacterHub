@@ -359,45 +359,41 @@ def get_top_models(id):
     group = request.args.get('group')
     project = Project.query.get_or_404(id)
 
-    criteria = Criterion.query.filter_by(
-        project_id=id,
-        group=group,
-        enabled=True
-    ).all()
+    all_criteria = Criterion.query.filter_by(project_id=id, enabled=True).all()
+    criteria_in_group = [c for c in all_criteria if c.group == group]
 
-    if not criteria:
+    if not criteria_in_group:
         return jsonify([])
 
     models = AIModel.query.filter_by(project_id=id).all()
+
     results = []
-
     for model in models:
-        total_score = 0
-        total_weight = 0
+        # n_ср = sum( Оценка_i * Вес_i ) по всем активным критериям данной модели
+        n_sr = 0.0
+        for c in all_criteria:
+            score = Score.query.filter_by(model_id=model.id, criterion_id=c.id).first()
+            v = score.value if score else 0
+            n_sr += v * c.weight
 
-        for criterion in criteria:
-            score = Score.query.filter_by(
-                model_id=model.id,
-                criterion_id=criterion.id
-            ).first()
+        # H_i = Оценка_i * Вес_i для каждого критерия i группы j
+        # I_j = sum(H_i) / n_ср * 100%
+        sum_H = 0.0
+        for c in criteria_in_group:
+            score = Score.query.filter_by(model_id=model.id, criterion_id=c.id).first()
+            v = score.value if score else 0
+            sum_H += v * c.weight
 
-            value = score.value if score else 0
-            total_score += value * criterion.weight
-            total_weight += criterion.weight
-
-        final_score = (
-            total_score / total_weight
-            if total_weight > 0 else 0
-        )
+        I_j = (sum_H / n_sr * 100.0) if n_sr > 0 else 0.0
 
         results.append({
             'model_id': model.id,
             'model_name': model.name,
-            'score': round(final_score, 3)
+            'score': round(I_j, 3)
         })
 
     results.sort(key=lambda x: x['score'], reverse=True)
-    return jsonify(results[:3])
+    return jsonify(results[:5])
 
 if __name__ == '__main__':
     app.run(debug=True)
