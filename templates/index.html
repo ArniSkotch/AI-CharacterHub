@@ -124,11 +124,13 @@
 
             <!-- ПОДРАЗДЕЛ КОНЕЧНОГО ОЦЕНИВАНИЯ (бывшие "Оценки") -->
             <div class="page" id="page-scores">
-                <div class="section-title">Конечное оценивание</div>
+                <div class="scores-page-header">
+                    <button class="score-mode-toggle" id="scoreModeToggle" title="Переключить режим оценивания">
+                        <span id="scoreModeLabel">Простой режим</span>
+                    </button>
+                    <div class="section-title">Конечное оценивание</div>
+                </div>
                 <div class="scores-table" id="scoresTable"></div>
-
-                <!-- FAB кнопка добавления модели (в оценках) -->
-                <button class="fab-btn" id="addModelScoresBtn" title="Добавить модель">+</button>
             </div>
 
             <!-- ПОДРАЗДЕЛ РЕЗУЛЬТАТОВ -->
@@ -154,6 +156,8 @@
                         <button class="show-more-btn">Показать больше</button>
                     </div>
                 </div>
+                <div class="results-block-header"; style="margin-top: 24px;">Какую часть группа критериев составляет в общей оценке модели?</div>
+                <div class="results-charts" id="resultsChartsContainer"></div>
                 <div class="results-charts" id="resultsChartsContainer"></div>
 
                 <!-- БЛОКИ АНАЛИЗА -->

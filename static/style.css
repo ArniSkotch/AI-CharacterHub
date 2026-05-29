@@ -2150,3 +2150,106 @@ body.booting .main-wrapper {
     border-bottom: 2px solid var(--purple-pale, #e9d5ff);
     margin-bottom: 2px;
 }
+
+/* ═══════════════════════════════════════════════════════════════════
+   SCORES PAGE — header row with mode toggle
+   ═══════════════════════════════════════════════════════════════════ */
+.scores-page-header {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+    margin-bottom: 20px;
+    margin-top: 50px;
+}
+
+.score-mode-toggle {
+    position: fixed;
+    top: calc(var(--topbar-h) + var(--tabs-h) + 16px);
+    left: 240px;           /* или нужное отступление от левого края */
+    z-index: 150;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 16px;
+    border-radius: var(--radius-pill);
+    border: 1.5px solid var(--purple-mid);
+    background: var(--purple-ghost);
+    color: var(--purple-mid);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.18s, color 0.18s, border-color 0.18s;
+    white-space: nowrap;
+}
+
+.score-mode-toggle:hover {
+    background: var(--purple-pale);
+    border-color: var(--purple-dark);
+    color: var(--purple-dark);
+}
+
+.score-mode-toggle.precise-active {
+    background: linear-gradient(135deg, var(--purple-mid), var(--purple-light));
+    color: #fff;
+    border-color: transparent;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   ТОЧЕЧНЫЙ РЕЖИМ — слайдер оценки
+   ═══════════════════════════════════════════════════════════════════ */
+.rating-slider-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    width: 100%;
+    padding: 4px 8px;
+}
+
+.rating-slider-val {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--purple-mid);
+    min-width: 28px;
+    text-align: center;
+    font-family: 'Space Mono', monospace;
+}
+
+.rating-slider {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 4px;
+    border-radius: 2px;
+    background: var(--purple-pale);
+    outline: none;
+    cursor: pointer;
+    accent-color: var(--purple-mid);
+}
+
+.rating-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--purple-mid), var(--purple-light));
+    border: 2px solid #fff;
+    box-shadow: 0 2px 6px rgba(109,40,217,0.3);
+    cursor: pointer;
+    transition: transform 0.12s;
+}
+
+.rating-slider::-webkit-slider-thumb:hover {
+    transform: scale(1.2);
+}
+
+.rating-slider::-moz-range-thumb {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--purple-mid), var(--purple-light));
+    border: 2px solid #fff;
+    cursor: pointer;
+}

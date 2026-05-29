@@ -874,8 +874,12 @@ async function openProject(id, el) {
 
         const savedValue = ratings[modelId]?.[criterionId];
 
-        if (savedValue) {
-            updateDots(cell, savedValue);
+        if (savedValue !== undefined) {
+            if (scoreMode === 'precise') {
+                updateSlider(cell, savedValue);
+            } else {
+                updateDots(cell, savedValue);
+            }
         }
     });
 
@@ -1590,24 +1594,61 @@ function initRatingDots() {
 
     });
 
+    // Слайдеры точечного режима
+    document.querySelectorAll('.rating-cell .rating-slider').forEach(slider => {
+        const container = slider.closest('.rating-cell');
+        const criterionId = container.dataset.criterionId;
+        const modelId = container.dataset.modelId;
+        const valDisplay = container.querySelector('.rating-slider-val');
+
+        slider.addEventListener('input', () => {
+            const v = parseFloat(slider.value);
+            valDisplay.textContent = v.toFixed(1);
+            if (!ratings[modelId]) ratings[modelId] = {};
+            ratings[modelId][criterionId] = v;
+        });
+
+        slider.addEventListener('change', async () => {
+            const v = parseFloat(slider.value);
+            await fetch(`/api/projects/${currentProjectId}/scores`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify([{
+                    model_id: Number(modelId),
+                    criterion_id: Number(criterionId),
+                    value: v
+                }])
+            });
+            await refreshResults();
+        });
+    });
+
 }
 
 function updateDots(container, value) {
 
     const dots = container.querySelectorAll(".dot");
+    // Округляем по стандартному правилу: >=4.5→5, >=3.5→4, >=2.5→3 и т.д.
+    const rounded = Math.round(value);
 
     dots.forEach(d => {
-
         const current = Number(d.textContent);
-
-        if (current <= value) {
+        if (current <= rounded) {
             d.classList.add("active");
         } else {
             d.classList.remove("active");
         }
-
     });
 
+}
+
+function updateSlider(container, value) {
+    const slider = container.querySelector('.rating-slider');
+    const valDisplay = container.querySelector('.rating-slider-val');
+    if (slider) {
+        slider.value = value;
+        if (valDisplay) valDisplay.textContent = Number(value).toFixed(1);
+    }
 }
 
 
@@ -1694,12 +1735,26 @@ function createScoresTable() {
         // ячейки моделей
         models.forEach(model => {
 
-            let dotsHTML = "";
+            let inputHTML = "";
 
-            for (let i = 1; i <= 5; i++) {
-                dotsHTML += `
-                    <div class="dot">${i}</div>
+            if (scoreMode === 'precise') {
+                const currentVal = (ratings[model.id]?.[criterion.id] ?? 3);
+                inputHTML = `
+                    <div class="rating-slider-wrap">
+                        <div class="rating-slider-val">${Number(currentVal).toFixed(1)}</div>
+                        <input type="range"
+                            class="rating-slider"
+                            min="1" max="5" step="0.1"
+                            value="${currentVal}"
+                        >
+                    </div>
                 `;
+            } else {
+                let dotsHTML = "";
+                for (let i = 1; i <= 5; i++) {
+                    dotsHTML += `<div class="dot">${i}</div>`;
+                }
+                inputHTML = `<div class="rating-dots">${dotsHTML}</div>`;
             }
 
             rowHTML += `
@@ -1708,9 +1763,7 @@ function createScoresTable() {
                     data-criterion-id="${criterion.id}"
                     data-model-id="${model.id}"
                 >
-                    <div class="rating-dots">
-                        ${dotsHTML}
-                    </div>
+                    ${inputHTML}
                 </div>
             `;
         });
@@ -1724,14 +1777,17 @@ function createScoresTable() {
     // восстановление оценок
     document.querySelectorAll(".rating-cell").forEach(cell => {
 
-        const criterion = cell.dataset.criterion;
-        const model = cell.dataset.model;
+        const criterionId = cell.dataset.criterionId;
+        const modelId = cell.dataset.modelId;
 
-        const savedValue =
-            ratings[criterion]?.[model];
+        const savedValue = ratings[modelId]?.[criterionId];
 
-        if (savedValue) {
-            updateDots(cell, savedValue);
+        if (savedValue !== undefined) {
+            if (scoreMode === 'precise') {
+                updateSlider(cell, savedValue);
+            } else {
+                updateDots(cell, savedValue);
+            }
         }
 
     });
@@ -2100,13 +2156,6 @@ async function renderAllCharts() {
         await renderRadarChart();
         return;
     }
-
-    // Заголовок вставляем перед контейнером
-    const heading = document.createElement('div');
-    heading.id = 'chartsSectionTitle';
-    heading.className = 'charts-section-title';
-    heading.textContent = 'Какую часть группа критериев составляет в общей оценке модели?';
-    container.insertAdjacentElement('beforebegin', heading);
 
     // Адаптируем grid-columns самого контейнера под количество групп
     const cols = Math.min(uniqueGroups.length, 3);
@@ -2514,23 +2563,44 @@ let deletingCriterionId = null;
 // Открыть FAB-кнопку критериев
 document.getElementById('addCriterionBtn').onclick = () => openCriterionModal('create');
 
-// Открыть ту же модалку со страницы оценок (добавить модель)
-document.getElementById('addModelScoresBtn').onclick = () => {
-    // reuse model modal
-    modelModalMode = 'create';
-    editingModelId = null;
-    document.getElementById('modelModalTitle').textContent = 'Добавить модель';
-    document.getElementById('modelModalDescription').classList.add('hidden');
-    document.getElementById('modelModalDescription').innerHTML = ' ';
-    document.getElementById('modelInput').classList.remove('hidden');
-    document.getElementById('modelInput').addEventListener('input', validateModelInput);
-    document.getElementById('createModelBtn').textContent = 'Добавить';
-    document.getElementById('createModelBtn').classList.remove('danger', 'holding');
-    document.getElementById('createModelBtn').style.setProperty('--hold-progress', '0%');
-    document.getElementById('modelModalOverlay').classList.add('active');
-    document.getElementById('modelInput').value = '';
-    document.getElementById('modelInput').focus();
-    validateModelInput();
+// ═══════════════════════════════════════════════════════════════════
+// РЕЖИМ ОЦЕНИВАНИЯ: Простой (кнопки) / Точечный (слайдер 1–5 шаг 0.1)
+// ═══════════════════════════════════════════════════════════════════
+let scoreMode = localStorage.getItem('scoreMode') || 'simple'; // 'simple' | 'precise'
+
+const scoreModeToggle = document.getElementById('scoreModeToggle');
+const scoreModeLabel  = document.getElementById('scoreModeLabel');
+
+// Применяем сохранённый режим сразу при загрузке (до открытия проекта)
+function applyScoreMode(mode) {
+    scoreMode = mode;
+    localStorage.setItem('scoreMode', mode);
+    scoreModeLabel.textContent = mode === 'simple' ? 'Простой режим' : 'Точечный режим';
+    scoreModeToggle.classList.toggle('precise-active', mode === 'precise');
+}
+
+// Инициализируем визуал кнопки согласно сохранённому режиму
+applyScoreMode(scoreMode);
+
+scoreModeToggle.onclick = () => {
+    const newMode = scoreMode === 'simple' ? 'precise' : 'simple';
+    applyScoreMode(newMode);
+    // Перестраиваем таблицу оценок с новым режимом
+    createScoresTable();
+    // Восстанавливаем текущие оценки (createScoresTable уже делает это,
+    // но дополнительный проход гарантирует корректность при краевых случаях)
+    document.querySelectorAll('.rating-cell').forEach(cell => {
+        const criterionId = cell.dataset.criterionId;
+        const modelId = cell.dataset.modelId;
+        const savedValue = ratings[modelId]?.[criterionId];
+        if (savedValue !== undefined) {
+            if (scoreMode === 'simple') {
+                updateDots(cell, savedValue);
+            } else {
+                updateSlider(cell, savedValue);
+            }
+        }
+    });
 };
 
 function openCriterionModal(mode, criterionData = null) {

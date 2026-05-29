@@ -36,6 +36,6 @@ class Criterion(db.Model):
 
 class Score(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    value = db.Column(db.Integer, default=0)  # от 1 до 5
+    value = db.Column(db.Float, default=0)  # от 1 до 5, допускает дробные
     model_id = db.Column(db.Integer, db.ForeignKey('ai_model.id'), nullable=False)
     criterion_id = db.Column(db.Integer, db.ForeignKey('criterion.id'), nullable=False)

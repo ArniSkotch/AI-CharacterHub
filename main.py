@@ -274,12 +274,12 @@ def save_scores(id):
             criterion_id=item['criterion_id']
         ).first()
         if s:
-            s.value = int(item['value'])
+            s.value = float(item['value'])
         else:
             db.session.add(Score(
                 model_id=item['model_id'],
                 criterion_id=item['criterion_id'],
-                value=int(item['value'])
+                value=float(item['value'])
             ))
     db.session.commit()
     return jsonify({'ok': True})
