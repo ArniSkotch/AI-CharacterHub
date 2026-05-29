@@ -753,6 +753,7 @@ async function switchTab(name) {
 
     if (name === "Результаты" && currentProjectId) {
         await renderAllCharts();
+        await renderAnalysis(currentProjectId);
     }
 
     if (name === "Анализ" && currentProjectId) {
@@ -842,16 +843,19 @@ async function openProject(id, el) {
     });
 
     renderAllCharts();     // создание диаграмм в Результатах
+    renderAnalysis(currentProjectId); // анализ на вкладке Результатов
     sortResults();         // сортировка моделей в Результатах
     updateShowMoreState(); // обновление состояния кнопки showmore в Результатах
     updateRankList();      // обновление рейтинга моделей
     await renderRadarChart();
 
-    // Если вкладка Анализ уже открыта — перезагружаем её под новый проект
+    // Если вкладка уже открыта — перезагружаем нужное при смене проекта
     const activeTabName = document.querySelector('.tab.active')?.textContent.trim();
+    if (activeTabName === 'Результаты') {
+        await renderAnalysis(currentProjectId);
+    }
     if (activeTabName === 'Анализ') {
         await loadSensitivity();
-        await renderAnalysis(currentProjectId);
     }
 }
 
@@ -1145,11 +1149,11 @@ tabs.forEach(tab => {
 
             if (name === "Результаты" && currentProjectId) {
                 await renderAllCharts();
+                await renderAnalysis(currentProjectId);
             }
 
             if (name === "Анализ" && currentProjectId) {
                 await loadSensitivity();
-                await renderAnalysis(currentProjectId);
             }
 
             // Сбрасываем кнопку генерации отчёта при уходе с вкладки Анализ
@@ -2205,6 +2209,8 @@ async function renderAnalysis(projectId) {
         if (!res.ok) {
             const err = await res.json().catch(() => ({ error: 'Нет данных' }));
             box.innerHTML = `<div class="analysis-error">${err.error || 'Ошибка загрузки'}</div>`;
+            const pdfBlock = document.getElementById('reportActionsBlock');
+            if (pdfBlock) pdfBlock.style.display = 'none';
             return;
         }
 
@@ -2236,6 +2242,10 @@ async function renderAnalysis(projectId) {
                 <td>${g.level_text}</td>
             </tr>
         `).join('');
+
+        // Показываем кнопку PDF только когда данные загружены
+        const pdfBlock = document.getElementById('reportActionsBlock');
+        if (pdfBlock) pdfBlock.style.display = 'flex';
 
         box.innerHTML = `
             <div class="analysis-date">Данные актуальны на: ${d.generation_date}</div>

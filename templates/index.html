@@ -123,6 +123,14 @@
                     </div>
                 </div>
                 <div class="results-charts" id="resultsChartsContainer"></div>
+
+                <!-- БЛОКИ АНАЛИЗА -->
+                <div id="analysis-content" class="analysis-content hidden"></div>
+
+                <!-- КНОПКА ГЕНЕРАЦИИ ОТЧЁТА -->
+                <div class="report-actions" id="reportActionsBlock" style="display:none;">
+                    <button class="btn-generate" id="btn-generate" onclick="generateReport(currentProjectId)">Скачать отчёт (PDF)</button>
+                </div>
             </div>
 
             <!-- ПОДРАЗДЕЛ АНАЛИЗА -->
@@ -143,17 +151,12 @@
                         <div id="sensitivityResults" class="sensitivity-results"></div>
                     </div>
                 </div>
-                <div class="results-radar-block analysis-radar-block" style="margin-top:16px;">
+                <div class="analysis-radar-block analysis-radar-full" style="margin-top:16px;">
                     <div class="results-block-header">Сравнение моделей (текущие веса)</div>
                     <div class="radar-container">
                         <canvas id="analysisRadarChart" width="400" height="400"></canvas>
                     </div>
                 </div>
-
-                <div class="report-actions">
-                    <button class="btn-generate" id="btn-generate" onclick="generateReport(currentProjectId)">Сгенерировать отчёт (PDF)</button>
-                </div>
-                <div id="analysis-content" class="analysis-content hidden"></div>
             </div>
         </div>
     </div>

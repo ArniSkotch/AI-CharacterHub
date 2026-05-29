@@ -1266,16 +1266,25 @@ body.booting .main-wrapper {
     min-height: 240px;
 }
 
-/* ===== ANALYSIS RADAR (compact) ===== */
+/* ===== ANALYSIS RADAR ===== */
 .analysis-radar-block {
-    max-width: 480px;
-    margin-left: auto;
-    margin-right: auto;
+    background: var(--card-bg);
+    border-radius: var(--radius-lg);
+    padding: 18px;
+    box-shadow: var(--shadow-card);
+    border: 1px solid var(--border);
     width: 100%;
 }
 
-.analysis-radar-block .radar-container canvas {
-    max-height: 280px !important;
+/* Full-width 2/3 variant used in Analysis tab */
+.analysis-radar-full {
+    width: calc(66.66% - 7px);
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.analysis-radar-full .radar-container canvas {
+    max-height: none !important;
 }
 
 /* ===== CRITERION CONTEXT MENU ===== */

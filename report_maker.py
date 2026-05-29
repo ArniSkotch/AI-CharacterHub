@@ -1,7 +1,16 @@
 import os
+import io
+import math
 from datetime import datetime
 
+import matplotlib
+matplotlib.use("Agg")  # без GUI
+import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
+import numpy as np
+
 from reportlab.lib.pagesizes import A4
+from reportlab.platypus import Image as RLImage
 from reportlab.lib.units import cm
 from reportlab.lib import colors
 from reportlab.lib.styles import ParagraphStyle
@@ -147,6 +156,8 @@ def collect_analysis_data(project_id):
     groups   = get_groups_analysis(best_model_id)
     total_criteria_count = len(criteria["high"]) + len(criteria["mid"]) + len(criteria["low"])
 
+    radar_data = _collect_radar_data(project_id)
+
     return {
         "generation_date":        datetime.now().strftime("%d.%m.%Y %H:%M"),
         "best_model_name":        best_model_name,
@@ -158,10 +169,82 @@ def collect_analysis_data(project_id):
         "mid_criteria":           criteria["mid"],
         "low_criteria":           criteria["low"],
         "groups":                 groups,
+        "radar_data":             radar_data,
     }
 
 
 # ── Построение PDF ────────────────────────────────────────────────────────────
+# ── Данные для розы ветров ───────────────────────────────────────
+def _collect_radar_data(project_id):
+    p = Project.query.get(project_id)
+    if not p:
+        return {}
+    criteria_all = Criterion.query.filter_by(project_id=project_id, enabled=True).all()
+    groups_ordered = []
+    seen = set()
+    for c in criteria_all:
+        if c.group not in seen:
+            seen.add(c.group)
+            groups_ordered.append(c.group)
+    result = {}
+    for model in AIModel.query.filter_by(project_id=project_id).all():
+        group_scores = {}
+        for g in groups_ordered:
+            crits_in_group = [c for c in criteria_all if c.group == g]
+            total, weight_sum = 0.0, 0.0
+            for c in crits_in_group:
+                s = Score.query.filter_by(model_id=model.id, criterion_id=c.id).first()
+                v = s.value if s else 0
+                total      += v * c.weight
+                weight_sum += c.weight
+            group_scores[g] = round(total / weight_sum, 2) if weight_sum else 0.0
+        result[model.name] = group_scores
+    return {"groups": groups_ordered, "models": result}
+
+
+def _build_radar_image(radar_data):
+    """Рендерит радарную диаграмму и возвращает BytesIO с PNG."""
+    groups = radar_data.get("groups", [])
+    models = radar_data.get("models", {})
+    if not groups or not models:
+        return None
+    N = len(groups)
+    angles = [2 * math.pi * i / N for i in range(N)] + [0]
+    palette = ["#8b5cf6", "#ec4899", "#14b8a6", "#f59e0b", "#3b82f6"]
+    fig, ax = plt.subplots(figsize=(7, 7), subplot_kw=dict(polar=True))
+    fig.patch.set_facecolor("white")
+    ax.set_facecolor("#f9f7ff")
+    ax.set_ylim(0, 5)
+    ax.set_yticks([1, 2, 3, 4, 5])
+    ax.set_yticklabels(["1", "2", "3", "4", "5"], fontsize=8, color="#9ca3af")
+    ax.set_xticks(angles[:-1])
+    ax.set_xticklabels(groups, fontsize=9, color="#374151")
+    ax.grid(color="#e5e7eb", linewidth=0.8)
+    ax.spines["polar"].set_color("#e5e7eb")
+    legend_patches = []
+    for i, (model_name, group_scores) in enumerate(list(models.items())[:5]):
+        values = [group_scores.get(g, 0) for g in groups] + [group_scores.get(groups[0], 0)]
+        color  = palette[i % len(palette)]
+        ax.plot(angles, values, color=color, linewidth=2)
+        ax.fill(angles, values, color=color, alpha=0.15)
+        legend_patches.append(mpatches.Patch(color=color, label=model_name))
+    ax.legend(
+        handles=legend_patches,
+        loc="upper right",
+        bbox_to_anchor=(1.35, 1.15),
+        fontsize=9,
+        frameon=True,
+        framealpha=0.9,
+    )
+    # Сохраняем в память — никаких временных файлов и проблем с путями
+    buf = io.BytesIO()
+    plt.savefig(buf, format="png", dpi=150, bbox_inches="tight", facecolor="white")
+    plt.close(fig)
+    buf.seek(0)
+    return buf
+
+
+# ── Построение PDF ────────────────────────────────────────────────
 def _build_story(data):
     story = []
 
@@ -269,7 +352,17 @@ def _build_story(data):
         ("LEFTPADDING", (0, 0), (-1, -1), 8),
     ]))
     story.append(g_tbl)
-    story.append(_sp(20))
+    story.append(_sp(16))
+
+    # Роза ветров
+    radar_data = data.get("radar_data", {})
+    if radar_data.get("groups") and radar_data.get("models"):
+        story.append(_h2("Сравнение моделей (роза ветров)"))
+        radar_buf = _build_radar_image(radar_data)
+        if radar_buf:
+            img = RLImage(radar_buf, width=14*cm, height=14*cm)
+            story.append(img)
+        story.append(_sp(16))
 
     # Подвал
     story.append(_hr())
