@@ -244,18 +244,11 @@ async function executeDelete() {
 }
 
 function switchToProjectTab() {
-    tabs.forEach(t => t.classList.remove("active"));
-
-    const projectTab = [...tabs].find(t => 
-        t.textContent.trim() === "Проект"
-    );
-
+    document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
+    const projectTab = [...document.querySelectorAll(".tab")].find(t => t.textContent.trim() === "Проект");
     if (projectTab) projectTab.classList.add("active");
-
-    Object.values(pages).forEach(p => p.classList.remove("active"));
-
-    const projectPage = pages["Проект"];
-    if (projectPage) projectPage.classList.add("active");
+    Object.values(pages).forEach(p => p && p.classList.remove("active"));
+    if (pages["Проект"]) pages["Проект"].classList.add("active");
 }
 
 addBtn.onclick = () => {
@@ -506,12 +499,7 @@ function setProjectState(hasProject) {
         projectContent.classList.add("hidden");
     }
 
-    tabs.forEach(tab => {
-        const name = tab.textContent.trim();
-        if (name === "Проект") return;
-
-        tab.classList.toggle("disabled", !hasProject);
-    });
+    applyProjectStateToTabs();
 }
 
 // АНАЛИЗ ЧУВСТВИТЕЛЬНОСТИ
@@ -705,18 +693,17 @@ function addSensitivityResetButton() {
 
 // WEBSITE ENTRY POINT
 async function initApp() {
+    // Применить сохранённый режим и построить вкладки
+    applyUserMode(currentUserMode);
+
     await loadProjects();
 
-    const lastId = localStorage.getItem("lastProjectId");
+    const lastId  = localStorage.getItem("lastProjectId");
     const lastTab = localStorage.getItem("lastTab");
 
     if (!lastId) {
         setProjectState(false);
         return;
-    }
-
-    if (lastTab && pages[lastTab]) {
-        await switchTab(lastTab);
     }
 
     const el = [...document.querySelectorAll(".project-item")]
@@ -728,26 +715,25 @@ async function initApp() {
     }
 
     await openProject(lastId, el);
+
+    if (lastTab && pages[lastTab]) {
+        await switchTab(lastTab);
+    }
 }
 
 // ОБРАБОТКА ОТКРЫТИЯ ВКЛАДОК
 async function switchTab(name) {
+    // Пересобираем tab-элементы из DOM (т.к. они динамические)
+    const currentTabs = document.querySelectorAll(".tab");
 
-    tabs.forEach(t => t.classList.remove("active"));
+    currentTabs.forEach(t => t.classList.remove("active"));
 
-    const targetTab = [...tabs].find(
-        t => t.textContent.trim() === name
-    );
+    const targetTab = [...currentTabs].find(t => t.textContent.trim() === name);
+    if (targetTab) targetTab.classList.add("active");
 
-    if (targetTab) {
-        targetTab.classList.add("active");
-    }
+    Object.values(pages).forEach(p => p && p.classList.remove("active"));
 
-    Object.values(pages).forEach(p => p.classList.remove("active"));
-
-    if (pages[name]) {
-        pages[name].classList.add("active");
-    }
+    if (pages[name]) pages[name].classList.add("active");
 
     localStorage.setItem("lastTab", name);
 
@@ -758,6 +744,12 @@ async function switchTab(name) {
 
     if (name === "Анализ" && currentProjectId) {
         await loadSensitivity();
+    }
+
+    // Сбрасываем кнопку генерации отчёта при уходе с вкладки Анализ
+    if (name !== "Анализ") {
+        const btn = document.getElementById("btn-generate");
+        if (btn && !btn.disabled) btn.textContent = "Скачать отчёт (PDF)";
     }
 }
 
@@ -1123,50 +1115,75 @@ async function executeModelDelete() {
 const tabs = document.querySelectorAll(".tab");
 
 const pages = {
-    "Проект": document.getElementById("page-project"),
-    "Критерии": document.getElementById("page-criteria"),
-    "Оценки": document.getElementById("page-scores"),
-    "Результаты": document.getElementById("page-results"),
-    "Анализ": document.getElementById("page-analysis"),
+    "Проект":              document.getElementById("page-project"),
+    "Критерии":            document.getElementById("page-criteria"),
+    "Загрузка промптов":   document.getElementById("page-prompts"),
+    "Оценка ответов":      document.getElementById("page-answers"),
+    "Конечное оценивание": document.getElementById("page-scores"),
+    "Результаты":          document.getElementById("page-results"),
+    "Анализ":              document.getElementById("page-analysis"),
 };
 
-tabs.forEach(tab => {
-    tab.addEventListener("click", async () => {
-        await switchTab(tab.textContent.trim());
+// ─── Режим пользователя ───────────────────────────────────────────────────
+// Управляется dropdown-меню в шапке
+let currentUserMode = localStorage.getItem("userMode") || "user+expert"; // user | expert | user+expert
 
-        // убрать active у всех tabs
-        tabs.forEach(t => t.classList.remove("active"));
-        tab.classList.add("active");
+function applyUserMode(mode) {
+    currentUserMode = mode;
+    localStorage.setItem("userMode", mode);
 
-        // скрыть все страницы
-        Object.values(pages).forEach(p => p.classList.remove("active"));
-
-        // показать нужную и сохранить как последнюю посещённую
-        const name = tab.textContent.trim();
-        localStorage.setItem("lastTab", name);
-
-        if (pages[name]) {
-            pages[name].classList.add("active");
-
-            if (name === "Результаты" && currentProjectId) {
-                await renderAllCharts();
-                await renderAnalysis(currentProjectId);
-            }
-
-            if (name === "Анализ" && currentProjectId) {
-                await loadSensitivity();
-            }
-
-            // Сбрасываем кнопку генерации отчёта при уходе с вкладки Анализ
-            if (name !== "Анализ") {
-                const btn = document.getElementById('btn-generate');
-                if (btn && !btn.disabled) {
-                    btn.textContent = 'Скачать отчёт (PDF)';
-                }
-            }
-        }
+    // Обновить чекмарки в dropdown
+    document.querySelectorAll(".mode-option").forEach(opt => {
+        opt.classList.toggle("active", opt.dataset.mode === mode);
     });
-});
+
+    // Перестроить таблицу вкладок
+    rebuildTabs();
+}
+
+function getVisibleTabNames() {
+    const base = ["Проект", "Критерии"];
+    const end  = ["Конечное оценивание", "Результаты", "Анализ"];
+    if (currentUserMode === "user")         return [...base, "Загрузка промптов",                   ...end];
+    if (currentUserMode === "expert")       return [...base,                        "Оценка ответов", ...end];
+    /* user+expert */                       return [...base, "Загрузка промптов",  "Оценка ответов", ...end];
+}
+
+function rebuildTabs() {
+    const tabsContainer = document.querySelector(".tabs");
+    if (!tabsContainer) return;
+
+    const visibleNames = getVisibleTabNames();
+    const activeTabName = document.querySelector(".tab.active")?.textContent.trim();
+
+    tabsContainer.innerHTML = "";
+    visibleNames.forEach(name => {
+        const tab = document.createElement("div");
+        tab.className = "tab" + (name === activeTabName ? " active" : "");
+        tab.textContent = name;
+        tab.addEventListener("click", async () => {
+            await switchTab(name);
+        });
+        tabsContainer.appendChild(tab);
+    });
+
+    // Если активная вкладка скрылась — переключиться на Проект
+    if (!visibleNames.includes(activeTabName) && currentProjectId) {
+        switchTab("Проект");
+    }
+
+    applyProjectStateToTabs();
+}
+
+function applyProjectStateToTabs() {
+    document.querySelectorAll(".tab").forEach(tab => {
+        const name = tab.textContent.trim();
+        if (name === "Проект") return;
+        tab.classList.toggle("disabled", !currentProjectId);
+    });
+}
+
+// Вкладки строятся динамически через rebuildTabs() — статический forEach не нужен
 
 // ЗАПОЛНЕНИЕ СПИСКА ВКЛАДКИ КРИТЕРИЕВ
 // cache for full criterion objects (for edit modal)
@@ -1241,12 +1258,13 @@ function attachCriteriaListeners() {
         updateResetButtonState(item, slider, resetBtn, criterionId);
 
         slider.addEventListener("input", () => {
-            let newValue = Math.max(0, Math.min(Number(slider.value)));
+            let newValue = Math.max(0, Math.min(100, Number(slider.value)));
 
             slider.value = newValue;
             value.textContent = newValue + "%";
 
-            updateCriteriaSum();
+            // Показываем нормализованные веса рядом с суммой
+            updateCriteriaSumWithNormalized();
             updateResetButtonState(item, slider, resetBtn, criterionId);
         });
 
@@ -1377,34 +1395,9 @@ document.getElementById("saveWeightsBtn").addEventListener("click", async () => 
 });
 
 // ИЗМЕНЕНИЕ ВЕСОВ КРИТЕРИЕВ
-criteriaContainer.querySelectorAll(".criteria-item").forEach(item => {
-    const slider = item.querySelector(".criteria-slider");
-    const value = item.querySelector(".criteria-value");
-
-    slider.addEventListener("input", () => {
-        const sliders = Array.from(criteriaContainer.querySelectorAll(".criteria-slider"));
-
-        const currentTotal = sliders.reduce((sum, s) => sum + Number(s.value), 0);
-
-        const maxAllowed = 100 - (currentTotal - Number(slider.value));
-
-        let newValue = Number(slider.value);
-        newValue = Math.max(0, Math.min(newValue, maxAllowed));
-
-        if (newValue > maxAllowed) {
-            newValue = maxAllowed;
-        }
-
-        if (newValue < 0) {
-            newValue = 0;
-        }
-
-        slider.value = newValue;
-        value.textContent = newValue + "%";
-
-        updateCriteriaSum();
-        saveCriteriaDebounced();
-    });
+// Слайдеры критериев уже обрабатываются в attachCriteriaListeners — этот блок только для saveCriteriaDebounced
+criteriaContainer.addEventListener('change', () => {
+    saveCriteriaDebounced();
 });
 
 // НОРМАЛИЗАЦИЯ ВЕСОВ ПРИ СОХРАНЕНИИ НОВЫХ ЗНАЧЕНИЙ
@@ -1466,20 +1459,40 @@ function saveCriteriaDebounced() {
     }, 300);
 }
 
-// СУММА ВЕСОВ ПО ВСЕМ КРИТЕРИЯМ
+// СУММА ВЕСОВ ПО ВСЕМ КРИТЕРИЯМ (показывает сырую сумму + подсказку о нормализации)
 function updateCriteriaSum() {
+    updateCriteriaSumWithNormalized();
+}
+
+function updateCriteriaSumWithNormalized() {
     const sliders = criteriaContainer.querySelectorAll(".criteria-slider");
 
     let total = 0;
-
-    sliders.forEach(slider => {
-        total += Number(slider.value);
-    });
+    sliders.forEach(slider => { total += Number(slider.value); });
 
     const totalBox = document.getElementById("criteriaTotal");
     if (totalBox) {
         totalBox.textContent = total + "%";
+        // Подсвечиваем если не равно 100
+        totalBox.classList.toggle("sum-warn", total !== 100);
+        totalBox.classList.toggle("sum-ok",   total === 100);
     }
+
+    // Обновляем строку "Нормализованные веса" (W_i = v_i/sum*100)
+    const normRow = document.getElementById("normalizedWeightsRow");
+    if (!normRow) return;
+    normRow.innerHTML = "";
+    if (total === 0) return;
+    sliders.forEach((slider, idx) => {
+        const raw = Number(slider.value);
+        const norm = Math.round((raw / total) * 100);
+        const item = slider.closest(".criteria-item");
+        const name = item?.querySelector(".criteria-name")?.textContent?.trim() || "";
+        const span = document.createElement("span");
+        span.className = "norm-weight-chip";
+        span.textContent = `${name}: ${norm}%`;
+        normRow.appendChild(span);
+    });
 }
 
 updateCriteriaSum();
@@ -2632,3 +2645,47 @@ document.getElementById('ctxCriterionDelete').onclick = () => {
     criterionCtxMenu.classList.remove('visible');
     if (ctxCriterionTargetData) openDeleteCriterionModal(ctxCriterionTargetId, ctxCriterionTargetData.name);
 };
+
+// ═══════════════════════════════════════════════════════════════════
+// DROPDOWN МЕНЮ РЕЖИМА (шапка)
+// ═══════════════════════════════════════════════════════════════════
+(function initModeDropdown() {
+    const toggle = document.getElementById("modeDropdownToggle");
+    const menu   = document.getElementById("modeDropdownMenu");
+    if (!toggle || !menu) return;
+
+    toggle.addEventListener("click", (e) => {
+        e.stopPropagation();
+        menu.classList.toggle("open");
+    });
+
+    document.addEventListener("click", (e) => {
+        if (!menu.contains(e.target) && e.target !== toggle) {
+            menu.classList.remove("open");
+        }
+    });
+
+    document.querySelectorAll(".mode-option").forEach(opt => {
+        opt.addEventListener("click", () => {
+            const mode = opt.dataset.mode;
+            applyUserMode(mode);
+            menu.classList.remove("open");
+            // обновить текст кнопки
+            updateModeToggleLabel();
+        });
+    });
+
+    updateModeToggleLabel();
+})();
+
+function updateModeToggleLabel() {
+    const toggle = document.getElementById("modeDropdownToggle");
+    if (!toggle) return;
+    const labels = {
+        "user":         "Только пользователь",
+        "expert":       "Только эксперт",
+        "user+expert":  "Пользователь + Эксперт"
+    };
+    const span = toggle.querySelector(".mode-label");
+    if (span) span.textContent = labels[currentUserMode] || "Режим";
+}

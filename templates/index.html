@@ -20,6 +20,19 @@
         <div class="brand-title">Никита Кузьмичев</div>
         <div class="brand-title">и Тамэрлан Исхаков</div>
     </div>
+
+    <!-- DROPDOWN РЕЖИМА -->
+    <div class="mode-dropdown" id="modeDropdownContainer">
+        <button class="mode-dropdown-toggle" id="modeDropdownToggle">
+            <span class="mode-label">Режим</span>
+            <span class="mode-chevron">▾</span>
+        </button>
+        <div class="mode-dropdown-menu" id="modeDropdownMenu">
+            <div class="mode-option" data-mode="user">Только пользователь</div>
+            <div class="mode-option" data-mode="expert">Только эксперт</div>
+            <div class="mode-option active" data-mode="user+expert">Пользователь + Эксперт</div>
+        </div>
+    </div>
 </div>
 
 <div class="container">
@@ -34,11 +47,7 @@
     <div class="main-wrapper">
         <div class="tabs-wrapper">
             <div class="tabs">
-                <div class="tab active">Проект</div>
-                <div class="tab">Критерии</div>
-                <div class="tab">Оценки</div>
-                <div class="tab">Результаты</div>
-                <div class="tab">Анализ</div>
+                <!-- Вкладки строятся динамически через rebuildTabs() в main.js -->
             </div>
         </div>
 
@@ -78,6 +87,8 @@
                     <div class="criteria-summary-left">Сумма весов</div>
                     <div class="criteria-summary-right" id="criteriaTotal">0%</div>
                 </div>
+                <!-- Строка нормализованных весов W_i = v_i/sum*100% -->
+                <div class="normalized-weights-row" id="normalizedWeightsRow"></div>
                 <div class="criteria-btn-wrapper">
                     <button id="resetWeightsBtn">Отменить изменения</button>
                     <button id="saveWeightsBtn">Сохранить параметры</button>
@@ -90,9 +101,29 @@
                 <button class="fab-btn" id="addCriterionBtn" title="Добавить критерий">+</button>
             </div>
 
-            <!-- ПОДРАЗДЕЛ ОЦЕНКИ -->
+            <!-- ПОДРАЗДЕЛ ЗАГРУЗКА ПРОМПТОВ -->
+            <div class="page" id="page-prompts">
+                <div class="section-title">Загрузка промптов</div>
+                <div class="placeholder-page">
+                    <div class="placeholder-icon">📤</div>
+                    <div class="placeholder-title">Раздел в разработке</div>
+                    <div class="placeholder-subtitle">Здесь будет возможность загружать промпты для оценки языковых моделей.</div>
+                </div>
+            </div>
+
+            <!-- ПОДРАЗДЕЛ ОЦЕНКА ОТВЕТОВ -->
+            <div class="page" id="page-answers">
+                <div class="section-title">Оценка ответов</div>
+                <div class="placeholder-page">
+                    <div class="placeholder-icon">🧑‍⚖️</div>
+                    <div class="placeholder-title">Раздел в разработке</div>
+                    <div class="placeholder-subtitle">Здесь эксперты смогут оценивать ответы моделей на загруженные промпты.</div>
+                </div>
+            </div>
+
+            <!-- ПОДРАЗДЕЛ КОНЕЧНОГО ОЦЕНИВАНИЯ (бывшие "Оценки") -->
             <div class="page" id="page-scores">
-                <div class="section-title">Ввод оценок</div>
+                <div class="section-title">Конечное оценивание</div>
                 <div class="scores-table" id="scoresTable"></div>
 
                 <!-- FAB кнопка добавления модели (в оценках) -->
